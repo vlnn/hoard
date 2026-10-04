@@ -15,7 +15,8 @@ on the system `/usr/bin/python3` with the standard library only.
 | `hoard.testing` | the conformance suite (`Conformance`), `FakeKind`, `make_epub`, `make_fb2`, fixtures `temp_tree`, `context_with` |
 | `hoard.build` | `python3 -m hoard.build [--check \| --link]` from a kind repository |
 
-`python3 -m hoard.new <kind>` writes a new kind repository. Everything with a leading underscore is private.
+`python3 -m hoard.new <kind>` writes a new kind repository; `docs/writing-a-kind.md` walks through
+the rest. Everything with a leading underscore is private.
 
 ## Working on it
 
@@ -24,5 +25,6 @@ on the system `/usr/bin/python3` with the standard library only.
     uv run pytest -m slow                  performance budgets
     uv run --isolated --python 3.9 pytest  the macOS Command Line Tools floor
     uv run python -m hoard <kind module> filter --text "words"
+    uv run python -m hoard <kind module> plan                  the fix plan, without applying it
 
 See `NOTES.md` for where the code departs from the plan and what remains to check in Alfred.

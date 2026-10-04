@@ -9,6 +9,11 @@ from hoard.items import Head, Item, Mod
 SYSTEM_MODS = (Mod("shift", "open", "Open"), Mod("alt", "reveal", "Reveal in Finder"))
 
 
+def counted(kind: Kind, count: int) -> str:
+    noun = kind.labels.get("one", "item") if count == 1 else kind.labels.get("many", "items")
+    return f"{count} {noun}"
+
+
 def places(found: Found) -> str:
     nearest = found.nearest
     if nearest is None:

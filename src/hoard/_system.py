@@ -4,6 +4,8 @@ import subprocess
 from typing import Optional
 
 from hoard._fold import Row
+from hoard._rows import counted
+from hoard.contract import Kind
 
 SYSTEM_VERBS = {
     "open": (("open",), "Opened"),
@@ -22,17 +24,17 @@ def reachable_locators(rows: list) -> list:
     return [target for target in map(reachable_target, rows) if target]
 
 
-def report(past: str, verb: str, titles: list) -> str:
+def report(kind: Kind, past: str, verb: str, titles: list) -> str:
     if not titles:
         return f"Nothing to {verb}"
     if len(titles) == 1:
         return f"{past} {titles[0]}"
-    return f"{past} {len(titles)} items"
+    return f"{past} {counted(kind, len(titles))}"
 
 
-def hand_over(rows: list, verb: str) -> str:
+def hand_over(kind: Kind, rows: list, verb: str) -> str:
     command, past = SYSTEM_VERBS[verb]
     targets = reachable_locators(rows)
     for _, locator in targets:
         subprocess.run([*command, locator], check=False)
-    return report(past, verb, [title for title, _ in targets])
+    return report(kind, past, verb, [title for title, _ in targets])

@@ -64,7 +64,7 @@ def plan(kind: Kind, typed: str = "", ctx: Optional[Context] = None) -> list:
         con.close()
 
 
-def doctor(kind: Kind, ctx: Optional[Context] = None):
+def doctor(kind: Kind, ctx: Optional[Context] = None, settings=()):
     from hoard import _doctor
 
-    return _doctor.checks(kind, context(kind, ctx))
+    return _doctor.checks(kind, context(kind, ctx), settings)

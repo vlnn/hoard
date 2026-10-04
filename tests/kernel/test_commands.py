@@ -48,7 +48,7 @@ def test_command_rows_and_batch_carry_its_verb_and_query(library):
 
 
 def test_acting_on_a_batch_runs_the_verb_on_everything_the_command_keeps(library, satchel):
-    assert api.act(FakeKind, "pack", ["batch:loose"], library) == "Pack into the satchel: 2 items", (
+    assert api.act(FakeKind, "pack", ["batch:loose"], library) == "Pack into the satchel: 2 notes", (
         "a batch should expand to every row the command keeps"
     )
     assert sorted(os.listdir(satchel)) == ["dune.note", "messiah.note", "ubik.note"], "both loose notes are packed"
@@ -99,8 +99,17 @@ def test_rnd_lists_entities_in_some_order(library):
 
 def test_stats_counts_each_storage(library):
     assert lines(FakeKind, library, "stats") == [
-        "» 3 entities",
+        "» 3 notes",
         "» shelf: 3 | reachable · updated just now",
         "» satchel: 1 | reachable · updated just now",
         f"» hoard {__version__} | schema v{len(_db.MIGRATIONS)}",
     ], "stats should count entities and each storage's copies"
+
+
+@pytest.mark.parametrize(
+    "labels, first",
+    [({}, "» 3 items"), ({"one": "note", "many": "notes"}, "» 3 notes")],
+)
+def test_stats_counts_in_the_kinds_own_nouns(library, labels, first):
+    kind = FakeKind._replace(labels=labels)
+    assert lines(kind, library, "stats")[0] == first, "the kind's labels should name what is counted"

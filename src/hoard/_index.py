@@ -8,7 +8,7 @@ import sys
 import time
 from typing import Callable, Iterator, NamedTuple, Optional
 
-from hoard import _db, _icons
+from hoard import _db, _fold, _icons
 from hoard.contract import Context, Entity, Kind, Storage
 
 BATCH = 200
@@ -89,8 +89,12 @@ def text_hash(entity: Entity) -> str:
     return hashlib.blake2b(entity.text.encode("utf-8"), digest_size=16).hexdigest()
 
 
-def fts_body(entity: Entity) -> str:
-    return "\n".join(value for value in entity.fields if value)
+FAILED = object()
+
+MISSING = """
+SELECT e.id, e.title, e.fields_json, e.icon FROM entities e
+WHERE NOT EXISTS (SELECT 1 FROM derived d WHERE d.id = e.id AND d.key = ?)
+"""
 
 
 def store_sighting(con: sqlite3.Connection, storage: str, entity: Entity, path: str, stat: os.stat_result) -> None:
@@ -123,12 +127,19 @@ def store_entity(run: Run, entity: Entity, stat: os.stat_result) -> None:
     )
 
 
-def store_text(con: sqlite3.Connection, entity: Entity) -> None:
-    (rowid,) = con.execute("SELECT rowid FROM entities WHERE id = ?", (entity.id,)).fetchone()
+def searchable_body(con: sqlite3.Connection, entity_id: str, fields_json: str) -> str:
+    derived = [value for (value,) in con.execute("SELECT value FROM derived WHERE id = ? ORDER BY key", (entity_id,))]
+    return "\n".join(value for value in [*json.loads(fields_json), *derived] if value)
+
+
+def refresh_text(con: sqlite3.Connection, entity_id: str) -> None:
+    rowid, title, fields_json = con.execute(
+        "SELECT rowid, title, fields_json FROM entities WHERE id = ?", (entity_id,)
+    ).fetchone()
     con.execute("DELETE FROM fts WHERE rowid = ?", (rowid,))
     con.execute(
         "INSERT INTO fts(rowid, id, title, body) VALUES (?, ?, ?, ?)",
-        (rowid, entity.id, entity.title, fts_body(entity)),
+        (rowid, entity_id, title, searchable_body(con, entity_id, fields_json)),
     )
 
 
@@ -145,7 +156,7 @@ def index_file(run: Run, storage: Storage, path: str, stat: os.stat_result, know
         return False
     store_sighting(run.con, storage.name, entity, path, stat)
     store_entity(run, entity, stat)
-    store_text(run.con, entity)
+    refresh_text(run.con, entity.id)
     return True
 
 
@@ -203,6 +214,31 @@ def settle_mtimes(con: sqlite3.Connection) -> None:
     con.execute("UPDATE entities SET mtime = (SELECT max(s.mtime) FROM sightings s WHERE s.id = entities.id)")
 
 
+def produce(key: str, producer, found):
+    try:
+        return producer(found) or ""
+    except Exception as error:
+        print(f"derive {key}: {found.entity.title}: {error!r}", file=sys.stderr)
+        return FAILED
+
+
+def store_derived(con: sqlite3.Connection, entity_id: str, key: str, value: str) -> None:
+    con.execute(
+        "INSERT OR REPLACE INTO derived(id, key, value, source, made_at) VALUES (?, ?, ?, ?, ?)",
+        (entity_id, key, value, key, time.time()),
+    )
+    refresh_text(con, entity_id)
+
+
+def derive_missing(run: Run) -> None:
+    for key, producer in run.kind.derive.items():
+        rows = run.con.execute(MISSING, (key,)).fetchall()
+        for row in _fold.fold(run.con, run.kind, run.ctx, rows):
+            value = produce(key, producer, row.found)
+            if value is not FAILED:
+                store_derived(run.con, row.found.entity.id, key, value)
+
+
 def start(con: sqlite3.Connection, full: bool) -> int:
     if full:
         _db.drop_cache(con)
@@ -222,5 +258,6 @@ def update(
         update_storage(run, storage)
     drop_orphans(con)
     settle_mtimes(con)
+    derive_missing(run)
     con.commit()
     return run.found

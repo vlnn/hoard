@@ -121,4 +121,5 @@ KIND = Kind(
     verbs={"pack": Verb("Pack into the satchel", pack, unpack), "toss": Verb("Toss", toss)},
     commands={"loose": Command("Pack", "pack", off=("satchel",))},
     lint=lint,
+    labels={"one": "note", "many": "notes"},
 )

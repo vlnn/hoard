@@ -10,6 +10,7 @@ KERNEL_VERBS = frozenset({"open", "reveal", "update", "undo", "apply"})
 KERNEL_COMMANDS = frozenset({"update", "undo", "rnd", "stats", "fix"})
 STEP_VERBS = frozenset({"move", "trash"})
 COMMAND_VERBS = frozenset({"open", "reveal"})
+LABELS = frozenset({"one", "many"})
 
 
 class ContractError(ValueError):
@@ -134,6 +135,7 @@ class _KindRecord(NamedTuple):
     commands: Mapping[str, Command] = NOTHING
     labels: Mapping[str, str] = NOTHING
     lint: Optional[Callable[[Sequence[Found], Context], Plan]] = None
+    derive: Mapping[str, Callable[[Found], Optional[str]]] = NOTHING
 
 
 class Kind(_KindRecord):
@@ -174,6 +176,10 @@ def problems(kind: Kind) -> list:
         (all(w.isalpha() and w.islower() for w in kind.commands), "command words should be single lowercase words"),
         (all(c.verb in COMMAND_VERBS or c.verb in kind.verbs for c in commands(kind)), "commands should name a known verb"),
         (all(set(c.on) | set(c.off) <= storage_names(kind) for c in commands(kind)), "on and off should name storages"),
+        (set(kind.labels) <= LABELS, f"labels should be among {sorted(LABELS)}"),
+        (all(key.isidentifier() and key.islower() for key in kind.derive), "derived keys should be lowercase identifiers"),
+        (all(callable(producer) for producer in kind.derive.values()), "derived producers should be callable"),
+        (all(isinstance(value, str) for value in kind.labels.values()), "labels should be strings"),
     )
     return [message for passed, message in checks if not passed]
 

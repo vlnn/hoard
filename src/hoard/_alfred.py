@@ -24,6 +24,11 @@ def alfred_folders(bundleid: str, home: str) -> dict:
     }
 
 
+def declared_settings(folder: str) -> list:
+    entries = read_plist(os.path.join(folder, "info.plist")).get("userconfigurationconfig", [])
+    return [(entry["variable"], entry.get("label", entry["variable"])) for entry in entries if "variable" in entry]
+
+
 def fill_from_workflow(folder: str, environ: MutableMapping[str, str]) -> None:
     bundleid = read_plist(os.path.join(folder, "info.plist")).get("bundleid")
     if not bundleid:

@@ -18,6 +18,17 @@ def check_name(kind: str) -> None:
         raise ValueError(f"{kind!r} should be a lowercase identifier, since it becomes the package name")
 
 
+def path_source(hoard_source, target: Path) -> str:
+    library = Path(hoard_source or library_checkout()).resolve()
+    return f'{{ path = "{os.path.relpath(library, target)}", editable = true }}'
+
+
+def git_source(url: str, tag: Optional[str]) -> str:
+    if not tag:
+        raise ValueError("a git dependency on hoard should pin a tag, e.g. v0.1.0")
+    return f'{{ git = "{url}", tag = "{tag}" }}'
+
+
 def library_checkout() -> Path:
     root = Path(__file__).resolve().parents[2]
     if (root / "pyproject.toml").is_file() and (root / "src" / "hoard").is_dir():
@@ -51,6 +62,8 @@ def write_kind_repository(
     bundle_prefix: str = "com.example",
     author: Optional[str] = None,
     hoard_source=None,
+    hoard_git: Optional[str] = None,
+    hoard_tag: Optional[str] = None,
 ) -> Path:
     check_name(kind)
     root = Path(into) / f"hoard-{kind}"
@@ -62,7 +75,7 @@ def write_kind_repository(
         "title": title or kind.replace("_", " ").title(),
         "bundle_prefix": bundle_prefix,
         "author": author if author is not None else getpass.getuser(),
-        "hoard_source": os.path.relpath(Path(hoard_source or library_checkout()).resolve(), Path(into).resolve() / root.name),
+        "hoard_source": git_source(hoard_git, hoard_tag) if hoard_git else path_source(hoard_source, Path(into).resolve() / root.name),
     }
     for template_file in template_files():
         write_one(template_file, root / target_of(template_file, kind), values)
@@ -77,13 +90,22 @@ def arguments(argv=None) -> argparse.Namespace:
     parser.add_argument("--bundle-prefix", default="com.example", help="reverse-DNS prefix of the bundle id")
     parser.add_argument("--into", default=".", help="folder to create hoard-<kind> in")
     parser.add_argument("--hoard", help="path to the library checkout the kind depends on")
+    parser.add_argument("--hoard-git", help="git URL of the library, to depend on a tag instead of a path")
+    parser.add_argument("--hoard-tag", help="the library tag to pin with --hoard-git, e.g. v0.1.0")
     return parser.parse_args(argv)
 
 
 def main(argv=None) -> None:
     given = arguments(argv)
     root = write_kind_repository(
-        given.kind, given.into, given.keyword, given.title, given.bundle_prefix, hoard_source=given.hoard
+        given.kind,
+        given.into,
+        given.keyword,
+        given.title,
+        given.bundle_prefix,
+        hoard_source=given.hoard,
+        hoard_git=given.hoard_git,
+        hoard_tag=given.hoard_tag,
     )
     print(f"wrote {root}; next: cd {root} && uv sync && make test")
 

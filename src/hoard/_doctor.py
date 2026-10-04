@@ -104,9 +104,19 @@ def passed(found: list, name: str) -> bool:
     return any(check.name == name and check.status == "ok" for check in found)
 
 
-def checks(kind: Kind, ctx: Context) -> Report:
+def shown(value: str) -> str:
+    return " · ".join(line.strip() for line in value.splitlines() if line.strip())
+
+
+def setting_check(ctx: Context, variable: str, label: str) -> Check:
+    value = shown(ctx.setting(variable))
+    return Check("setting", f"{label}: {value}" if value else f"{label}: not set", "ok" if value else "warn")
+
+
+def checks(kind: Kind, ctx: Context, settings=()) -> Report:
     found = [kernel_check(), python_check(), *sqlite_checks()]
     found += [folder_check("data folder", ctx.data), folder_check("cache folder", ctx.cache)]
+    found += [setting_check(ctx, variable, label) for variable, label in settings]
     for storage in kind.storages:
         found += storage_checks(storage, ctx)
     if passed(found, "fts5"):

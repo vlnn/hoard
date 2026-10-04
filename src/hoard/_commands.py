@@ -63,7 +63,7 @@ def stats_rows(con, kind, ctx, words) -> tuple:
     (entities,) = con.execute("SELECT count(*) FROM entities").fetchone()
     mounted = _fold.mounted_roots(kind, ctx)
     return (
-        Head("stats", plural(entities, "entity", "entities")),
+        Head("stats", _rows.counted(kind, entities)),
         *(storage_head(con, s.name, mounted[s.name]) for s in kind.storages),
         Head("stats:hoard", f"hoard {hoard.__version__}", f"schema v{_db.schema_version(con)}"),
     )

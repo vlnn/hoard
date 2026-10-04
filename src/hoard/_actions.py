@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 
-from hoard import _commands, _fold, _index, _journal, _plan, _search, _system
+from hoard import _commands, _fold, _index, _journal, _plan, _rows, _search, _system
 from hoard.contract import Context, Kind, Verb
 
 BATCH = "batch:"
@@ -24,10 +24,10 @@ def resolve(con: sqlite3.Connection, kind: Kind, ctx: Context, ids) -> list:
     return _fold.fold(con, kind, ctx, _search.by_ids(con, expanded(con, kind, ctx, ids)))
 
 
-def outcome(verb: Verb, titles: list) -> str:
+def outcome(kind: Kind, verb: Verb, titles: list) -> str:
     if not titles:
         return f"{verb.label}: nothing to do"
-    named = titles[0] if len(titles) == 1 else f"{len(titles)} items"
+    named = titles[0] if len(titles) == 1 else _rows.counted(kind, len(titles))
     return f"{verb.label}: {named}" + ("" if verb.undoable else " (cannot be undone)")
 
 
@@ -43,7 +43,7 @@ def run_kind_verb(con: sqlite3.Connection, kind: Kind, ctx: Context, name: str, 
         _journal.record(con, name, changes, verb.undoable)
         con.commit()
         _index.update(con, kind, ctx)
-    return outcome(verb, changed_titles(rows, changes))
+    return outcome(kind, verb, changed_titles(rows, changes))
 
 
 def undoer(kind: Kind, verb_name: str):
@@ -98,7 +98,7 @@ def apply_plan(con: sqlite3.Connection, kind: Kind, ctx: Context, ids) -> str:
 
 def dispatch(con: sqlite3.Connection, kind: Kind, ctx: Context, verb: str, ids) -> str:
     if verb in _system.SYSTEM_VERBS:
-        return _system.hand_over(resolve(con, kind, ctx, ids), verb)
+        return _system.hand_over(kind, resolve(con, kind, ctx, ids), verb)
     if verb == "undo":
         return undo_last(con, kind, ctx)
     if verb == "apply":

@@ -78,6 +78,10 @@ def test_a_kind_needs_only_storages_fields_and_evidence():
         ({"commands": {"loose": Command("Pack", "pack")}}, "a command should name a verb that exists"),
         ({"commands": {"Loose": Command("Open", "open")}}, "a command word should be one lowercase word"),
         ({"commands": {"loose": Command("Open", "open", on=("device",))}}, "on should name the kind's storages"),
+        ({"labels": {"plural": "books"}}, "labels should be from the known set"),
+        ({"derive": {"ocr": "not callable"}}, "derived producers should be callable"),
+        ({"derive": {"OCR text": str}}, "derived keys should be lowercase identifiers"),
+        ({"labels": {"one": 1}}, "labels should be strings"),
         ({"commands": {"loose": Command("Open", "open", off=("device",))}}, "off should name the kind's storages"),
     ],
 )

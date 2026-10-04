@@ -36,7 +36,7 @@ def test_open_names_how_many_when_several(ctx, shelf, mocker):
     mocker.patch("subprocess.run")
     ids = [read_note(write_note(shelf, name, name.title())).id for name in ("dune", "ubik")]
     api.update(FakeKind, ctx)
-    assert api.act(FakeKind, "open", ids, ctx) == "Opened 2 items", "several targets should be counted"
+    assert api.act(FakeKind, "open", ids, ctx) == "Opened 2 notes", "several targets should be counted"
 
 
 def test_an_unknown_id_opens_nothing(ctx, dune, mocker):
@@ -71,7 +71,7 @@ def first_line(ctx, typed):
 
 @pytest.mark.parametrize(
     "count, message",
-    [(1, "Pack into the satchel: Dune"), (2, "Pack into the satchel: 2 items")],
+    [(1, "Pack into the satchel: Dune"), (2, "Pack into the satchel: 2 notes")],
 )
 def test_a_kind_verb_reports_what_changed(ctx, two_notes, count, message):
     assert api.act(FakeKind, "pack", two_notes[:count], ctx) == message, "the notification should name the result"
@@ -101,7 +101,7 @@ def test_undo_restores_the_tree_to_the_byte(ctx, two_notes, shelf, satchel):
 
 def test_a_verb_without_undo_is_flagged_and_skipped_by_undo(ctx, two_notes, satchel):
     api.act(FakeKind, "pack", two_notes[:1], ctx)
-    assert api.act(FakeKind, "toss", two_notes, ctx) == "Toss: 2 items (cannot be undone)", "say it is final"
+    assert api.act(FakeKind, "toss", two_notes, ctx) == "Toss: 2 notes (cannot be undone)", "say it is final"
     assert api.act(FakeKind, "undo", [], ctx) == "Undid Pack into the satchel", "undo should reach past toss"
     assert os.listdir(satchel) == [], "the earlier undoable batch should be the one undone"
 

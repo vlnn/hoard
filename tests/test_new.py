@@ -52,6 +52,8 @@ def test_template_writes_the_kind_repository_layout(generated):
         ("Makefile", "\tuv run pytest"),
         ("Makefile", "$(SYSTEM_PYTHON)"),
         ("Makefile", "$(SYSTEM_PYTHON) hoard.py doctor"),
+        ("Makefile", "git clone --quiet . .ci-clone"),
+        (".gitignore", ".ci-clone/"),
     ],
 )
 def test_template_fills_in_the_kind(generated, relative, fragment):
@@ -59,7 +61,7 @@ def test_template_fills_in_the_kind(generated, relative, fragment):
 
 
 def test_the_path_dependency_points_at_the_library(generated):
-    line = next(l for l in (generated / "pyproject.toml").read_text().splitlines() if l.startswith("hoard = "))
+    line = next(text for text in (generated / "pyproject.toml").read_text().splitlines() if text.startswith("hoard = "))
     relative = line.split('"')[1]
     assert (generated / relative / "src" / "hoard").is_dir(), "the path dependency should resolve to the library"
 
@@ -83,3 +85,15 @@ def test_generated_repository_passes_its_conformance_and_builds(generated):
     build = subprocess.run([sys.executable, "-m", "hoard.build", "--check"], cwd=generated, env=environ, capture_output=True, text=True)
     assert build.returncode == 0, f"a fresh kind should build and answer a keystroke:\n{build.stdout}{build.stderr}"
     assert (generated / "dist" / "shelf.alfredworkflow").is_file(), "the build should leave a bundle in dist/"
+
+
+def test_a_kind_can_depend_on_a_tagged_library(tmp_path):
+    root = new.write_kind_repository("shelf", tmp_path, hoard_git="https://example.com/va/hoard.git", hoard_tag="v0.1.0")
+    assert 'hoard = { git = "https://example.com/va/hoard.git", tag = "v0.1.0" }' in (root / "pyproject.toml").read_text(), (
+        "a released kind should pin the library by tag"
+    )
+
+
+def test_a_git_dependency_needs_a_tag(tmp_path):
+    with pytest.raises(ValueError):
+        new.write_kind_repository("shelf", tmp_path, hoard_git="https://example.com/va/hoard.git")
