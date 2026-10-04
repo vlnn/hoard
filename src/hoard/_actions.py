@@ -1,8 +1,23 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 
-from hoard import _commands, _fold, _index, _journal, _models, _plan, _rows, _search, _system
+from hoard import (
+    _commands,
+    _fold,
+    _index,
+    _journal,
+    _models,
+    _names,
+    _plan,
+    _requery,
+    _rows,
+    _search,
+    _suggest,
+    _system,
+    _tags,
+)
 from hoard.contract import Context, Kind, Verb
 
 BATCH = "batch:"
@@ -46,11 +61,22 @@ def run_kind_verb(con: sqlite3.Connection, kind: Kind, ctx: Context, name: str, 
     return outcome(kind, verb, changed_titles(rows, changes))
 
 
+def plan_undo(con, changes, ctx) -> None:
+    _plan.undo_changes(changes, ctx)
+
+
+KERNEL_UNDO = {"apply": plan_undo, "accept": _names.undo, "set_tag": _tags.undo, "accept_tags": _tags.undo}
+
+
+def kind_undo(verb):
+    return lambda con, changes, ctx: verb.undo(changes, ctx)
+
+
 def undoer(kind: Kind, verb_name: str):
-    if verb_name == "apply":
-        return "Fix", _plan.undo_changes
+    if verb_name in KERNEL_UNDO:
+        return _commands.KERNEL_LABELS[verb_name], KERNEL_UNDO[verb_name]
     verb = kind.verbs.get(verb_name)
-    return (verb.label, verb.undo) if verb and verb.undo else None
+    return (verb.label, kind_undo(verb)) if verb and verb.undo else None
 
 
 def undo_last(con: sqlite3.Connection, kind: Kind, ctx: Context) -> str:
@@ -59,7 +85,7 @@ def undo_last(con: sqlite3.Connection, kind: Kind, ctx: Context) -> str:
     if found is None:
         return "Nothing to undo"
     label, undo = found
-    undo(batch.changes, ctx)
+    undo(con, batch.changes, ctx)
     _journal.forget(con, batch.number)
     con.commit()
     _index.update(con, kind, ctx)
@@ -103,6 +129,64 @@ def use_model(con: sqlite3.Connection, ids) -> str:
     return f"{role.title()} model: {model}"
 
 
+def record(con: sqlite3.Connection, verb: str, changes: list) -> None:
+    if changes:
+        _journal.record(con, verb, changes, undoable=True)
+    con.commit()
+
+
+def title_of(con: sqlite3.Connection, entity_id: str) -> str:
+    return con.execute("SELECT title FROM entities WHERE id = ?", (entity_id,)).fetchone()[0]
+
+
+def names_for(con, kind: Kind, ids) -> list:
+    if ids and ids[0].startswith("names:"):
+        return _names.pending(con, kind, ids[0][len("names:") :])
+    wanted = set(ids)
+    return [suggestion for suggestion in _names.pending(con, kind) if suggestion.id in wanted]
+
+
+def accept_names(con, kind: Kind, ctx: Context, ids) -> str:
+    changes = _names.accept(con, kind, names_for(con, kind, ids))
+    record(con, "accept", changes)
+    return f"Accepted {_commands.plural(len(changes), 'name')}"
+
+
+def tagged(con, kind: Kind, changes: list, tag: str = "") -> str:
+    if not changes:
+        return "Nothing tagged"
+    who = title_of(con, changes[0].id) if len(changes) == 1 else _rows.counted(kind, len(changes))
+    return f"Tagged {who}" + (f": {tag}" if tag else "")
+
+
+def targets_of(con, target: str) -> list:
+    if target.startswith(_suggest.EVERY):
+        return _suggest.untagged_ids(con, _suggest.target_words(target))
+    return [target[1:]]
+
+
+def set_tags(con, kind: Kind, ctx: Context, ids) -> str:
+    target, tag = json.loads(ids[0][len(_suggest.CHOICE) :])
+    changes = [_tags.set_tag(con, entity_id, tag, "hand") for entity_id in targets_of(con, target)]
+    record(con, "set_tag", changes)
+    return tagged(con, kind, changes, tag)
+
+
+def accept_tags(con, kind: Kind, ctx: Context, ids) -> str:
+    typed = ids[0][len("suggested:") :] if ids else ""
+    changes = [_tags.set_tag(con, i, _tags.suggestion(con, i), "model") for i in _suggest.suggested_ids(con, typed)]
+    record(con, "accept_tags", changes)
+    tags = {change.after[0][0] for change in changes}
+    return tagged(con, kind, changes, tags.pop() if len(tags) == 1 and len(changes) == 1 else "")
+
+
+def pick(kind: Kind, ids) -> str:
+    given = ids[0] if ids else ""
+    target = given[len("pick:") :] if given.startswith("pick:") else f"#{given}"
+    _requery.reopen(f"{kind.keyword} tag {target} ")
+    return ""
+
+
 def dispatch(con: sqlite3.Connection, kind: Kind, ctx: Context, verb: str, ids) -> str:
     if verb in _system.SYSTEM_VERBS:
         return _system.hand_over(kind, resolve(con, kind, ctx, ids), verb)
@@ -112,6 +196,14 @@ def dispatch(con: sqlite3.Connection, kind: Kind, ctx: Context, verb: str, ids) 
         return apply_plan(con, kind, ctx, ids)
     if verb == "use_model":
         return use_model(con, ids)
+    if verb == "accept":
+        return accept_names(con, kind, ctx, ids)
+    if verb == "set_tag":
+        return set_tags(con, kind, ctx, ids)
+    if verb == "accept_tags":
+        return accept_tags(con, kind, ctx, ids)
+    if verb == "pick":
+        return pick(kind, ids)
     if verb in kind.verbs:
         return run_kind_verb(con, kind, ctx, verb, ids)
     return f"No verb {verb}"

@@ -16,6 +16,8 @@ MATCHING = "rowid IN (SELECT rowid FROM fts WHERE fts MATCH ?)"
 
 HELD = "EXISTS (SELECT 1 FROM sightings s WHERE s.id = entities.id AND s.storage = ?)"
 
+UNTAGGED = "NOT EXISTS (SELECT 1 FROM tags t WHERE t.id = entities.id)"
+
 RANDOM = "SELECT rowid FROM entities ORDER BY random() LIMIT ?"
 
 BY_ID = "SELECT id, title, fields_json, icon FROM entities WHERE id = ?"
@@ -46,7 +48,7 @@ def chosen(con: sqlite3.Connection, chooser: str, *parameters) -> list:
     return con.execute(ENTITIES.format(chosen=chooser), parameters).fetchall()
 
 
-def where(typed: str, on=(), off=()) -> Optional[tuple]:
+def where(typed: str, on=(), off=(), untagged: bool = False) -> Optional[tuple]:
     clauses, parameters = [], []
     if typed.strip():
         expression = match_expression(typed)
@@ -60,27 +62,29 @@ def where(typed: str, on=(), off=()) -> Optional[tuple]:
     for storage in off:
         clauses.append(f"NOT {HELD}")
         parameters.append(storage)
+    if untagged:
+        clauses.append(UNTAGGED)
     return (" WHERE " + " AND ".join(clauses) if clauses else "", tuple(parameters))
 
 
-def search(con: sqlite3.Connection, typed: str, limit: int = LIMIT, on=(), off=()) -> list:
-    narrowed = where(typed, on, off)
+def search(con: sqlite3.Connection, typed: str, limit: int = LIMIT, on=(), off=(), untagged: bool = False) -> list:
+    narrowed = where(typed, on, off, untagged)
     if narrowed is None:
         return []
     clause, parameters = narrowed
     return chosen(con, f"SELECT rowid FROM entities{clause} ORDER BY mtime DESC LIMIT ?", *parameters, limit)
 
 
-def count(con: sqlite3.Connection, typed: str, on=(), off=()) -> int:
-    narrowed = where(typed, on, off)
+def count(con: sqlite3.Connection, typed: str, on=(), off=(), untagged: bool = False) -> int:
+    narrowed = where(typed, on, off, untagged)
     if narrowed is None:
         return 0
     clause, parameters = narrowed
     return con.execute(f"SELECT count(*) FROM entities{clause}", parameters).fetchone()[0]
 
 
-def ids(con: sqlite3.Connection, typed: str, on=(), off=()) -> list:
-    narrowed = where(typed, on, off)
+def ids(con: sqlite3.Connection, typed: str, on=(), off=(), untagged: bool = False) -> list:
+    narrowed = where(typed, on, off, untagged)
     if narrowed is None:
         return []
     clause, parameters = narrowed

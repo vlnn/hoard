@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import urllib.error
+
 import pytest
 
 from hoard import _doctor, api
@@ -50,3 +52,17 @@ def test_doctor_lines_align_status_name_and_value():
     assert report.lines() == ["ok    python           3.9.6", "FAIL  fts5             missing"], (
         "lines should be readable in a terminal"
     )
+
+
+@pytest.mark.parametrize(
+    "reply, status, value",
+    [
+        ({"data": [{"id": "qwen"}]}, "ok", "http://m:8080 · qwen"),
+        (urllib.error.URLError("refused"), "warn", "http://m:8080 not reachable"),
+    ],
+)
+def test_doctor_checks_each_configured_model_server(ctx, replies, reply, status, value):
+    replies(reply)
+    report = api.doctor(FakeKind, ctx._replace(config={**ctx.config, "hoard_chat_url": "http://m:8080"}))
+    (check,) = [c for c in report.checks if c.name == "chat server"]
+    assert (check.status, check.value) == (status, value), "doctor should say whether the model server answers"

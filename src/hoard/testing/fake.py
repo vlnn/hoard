@@ -5,7 +5,7 @@ import os
 import shutil
 from typing import Optional
 
-from hoard.contract import Change, Command, Entity, Kind, Plan, Step, Storage, Verb, roots_from
+from hoard.contract import Change, Command, Entity, Kind, Plan, Step, Storage, Verb, lines_from, roots_from
 
 SUFFIX = ".note"
 
@@ -122,4 +122,6 @@ KIND = Kind(
     commands={"loose": Command("Pack", "pack", off=("satchel",))},
     lint=lint,
     labels={"one": "note", "many": "notes"},
+    nameable=("author", "year"),
+    tags=lines_from("fake_tags"),
 )

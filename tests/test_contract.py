@@ -14,6 +14,7 @@ from hoard.contract import (
     Storage,
     Verb,
     lazy,
+    lines_from,
     roots_from,
 )
 
@@ -80,6 +81,8 @@ def test_a_kind_needs_only_storages_fields_and_evidence():
         ({"commands": {"loose": Command("Open", "open", on=("device",))}}, "on should name the kind's storages"),
         ({"labels": {"plural": "books"}}, "labels should be from the known set"),
         ({"derive": {"ocr": "not callable"}}, "derived producers should be callable"),
+        ({"nameable": ("publisher",)}, "nameable should name the kind's fields"),
+        ({"tags": ("scifi",)}, "tags should be a callable taking the context"),
         ({"derive": {"OCR text": str}}, "derived keys should be lowercase identifiers"),
         ({"labels": {"one": 1}}, "labels should be strings"),
         ({"commands": {"loose": Command("Open", "open", off=("device",))}}, "off should name the kind's storages"),
@@ -161,3 +164,10 @@ def test_context_carries_the_roots_of_every_storage():
     ctx = Context(data="/d", cache="/c", roots={"device": ("/Volumes/KOBO",)})
     assert ctx.roots_of("device") == ("/Volumes/KOBO",), "verbs should find storage roots in the context"
     assert ctx.roots_of("satchel") == (), "an unknown storage has no roots"
+
+
+def test_lines_from_reads_one_value_per_line():
+    tags = lines_from("tags")
+    assert tags(Context(data="", cache="", config={"tags": "scifi\n fantasy \n\n"})) == ["scifi", "fantasy"], (
+        "a lines setting should give its non-blank lines"
+    )

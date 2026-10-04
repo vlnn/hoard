@@ -47,19 +47,20 @@ def test_an_unreachable_storage_hands_the_row_to_the_next(ctx, dune_twice, shelf
     )
 
 
-def test_a_row_with_no_reachable_copy_says_so_and_offers_no_modifiers(ctx, dune_twice, shelf, satchel, tmp_path):
+def test_a_row_with_no_reachable_copy_says_so_and_cannot_be_opened(ctx, dune_twice, shelf, satchel, tmp_path):
     os.rename(shelf, tmp_path / "unplugged shelf")
     os.rename(satchel, tmp_path / "unplugged satchel")
     item = only_row(FakeKind, ctx)
     assert item.subtitle.startswith("shelf +satchel (not reachable) · "), "an unreachable row should say so"
-    assert item.mods == (), "nothing can be opened or revealed when no copy is reachable"
+    assert [mod.verb for mod in item.mods] == ["pick"], "nothing can be opened or revealed, but it can still be tagged"
 
 
 def test_reachable_rows_offer_open_and_reveal(ctx, dune_twice):
     assert only_row(FakeKind, ctx).mods == (
         Mod("shift", "open", "Open"),
         Mod("alt", "reveal", "Reveal in Finder"),
-    ), "⇧↩ should open and ⌥↩ should reveal"
+        Mod("cmd", "pick", "Tag…"),
+    ), "⇧↩ should open, ⌥↩ reveal, and ⌘↩ tag when the kind has tags"
 
 
 def test_default_verb_sees_every_place(ctx, shelf, satchel):

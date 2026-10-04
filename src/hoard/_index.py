@@ -8,7 +8,8 @@ import sys
 import time
 from typing import Callable, Iterator, NamedTuple, Optional
 
-from hoard import _db, _fold, _icons
+from hoard import _db, _fold, _icons, _names
+from hoard._text import refresh_text
 from hoard.contract import Context, Entity, Kind, Storage
 
 BATCH = 200
@@ -143,22 +144,6 @@ def store_entity(run: Run, entity: Entity, stat: os.stat_result) -> None:
     )
 
 
-def searchable_body(con: sqlite3.Connection, entity_id: str, fields_json: str) -> str:
-    derived = [value for (value,) in con.execute("SELECT value FROM derived WHERE id = ? ORDER BY key", (entity_id,))]
-    return "\n".join(value for value in [*json.loads(fields_json), *derived] if value)
-
-
-def refresh_text(con: sqlite3.Connection, entity_id: str) -> None:
-    rowid, title, fields_json = con.execute(
-        "SELECT rowid, title, fields_json FROM entities WHERE id = ?", (entity_id,)
-    ).fetchone()
-    con.execute("DELETE FROM fts WHERE rowid = ?", (rowid,))
-    con.execute(
-        "INSERT INTO fts(rowid, id, title, body) VALUES (?, ?, ?, ?)",
-        (rowid, entity_id, title, searchable_body(con, entity_id, fields_json)),
-    )
-
-
 def touch(run: Run, entity_id: str) -> None:
     run.con.execute("UPDATE entities SET last_seen = ? WHERE id = ?", (run.number, entity_id))
 
@@ -172,6 +157,7 @@ def index_file(run: Run, storage: Storage, path: str, stat: os.stat_result, know
         return False
     store_sighting(run.con, storage.name, entity, path, stat)
     store_entity(run, entity, stat)
+    _names.overlay(run.con, run.kind, entity.id)
     refresh_text(run.con, entity.id)
     return True
 

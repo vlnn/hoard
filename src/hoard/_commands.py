@@ -33,7 +33,7 @@ def update_rows(con, kind, ctx, words) -> tuple:
     return (_rows.update_offer(),)
 
 
-KERNEL_LABELS = {"apply": "Fix"}
+KERNEL_LABELS = {"apply": "Fix", "accept": "Accept names", "set_tag": "Tag", "accept_tags": "Accept tags"}
 
 
 def verb_label(kind: Kind, verb: str) -> str:
@@ -170,6 +170,14 @@ def rows_for(con: sqlite3.Connection, kind: Kind, ctx: Context, typed: str) -> t
         return update_rows(con, kind, ctx, rest)
     if word == "model" and _models.configured(ctx):
         return model_rows(con, kind, ctx, rest)
+    if word == "name" and kind.nameable and "chat" in _models.configured(ctx) and not _search.is_empty(con):
+        from hoard import _suggest
+
+        return _suggest.name_rows(con, kind, ctx, rest)
+    if word == "tag" and kind.tags and kind.tags(ctx) and not _search.is_empty(con):
+        from hoard import _suggest
+
+        return _suggest.tag_rows(con, kind, ctx, rest)
     if _search.is_empty(con):
         return _rows.empty_index_rows(kind, ctx)
     if word in KERNEL_COMMANDS:

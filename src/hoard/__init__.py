@@ -12,6 +12,7 @@ from hoard.contract import (
     Storage,
     Verb,
     lazy,
+    lines_from,
     roots_from,
 )
 
@@ -31,5 +32,6 @@ __all__ = [
     "Storage",
     "Verb",
     "lazy",
+    "lines_from",
     "roots_from",
 ]

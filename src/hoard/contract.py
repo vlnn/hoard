@@ -6,8 +6,10 @@ from types import MappingProxyType
 from typing import Any, Callable, Mapping, NamedTuple, Optional, Sequence
 
 NOTHING = MappingProxyType({})
-KERNEL_VERBS = frozenset({"open", "reveal", "update", "undo", "apply", "use_model"})
-KERNEL_COMMANDS = frozenset({"update", "undo", "rnd", "stats", "fix", "model"})
+KERNEL_VERBS = frozenset(
+    {"open", "reveal", "update", "undo", "apply", "use_model", "ask", "accept", "pick", "set_tag", "accept_tags"}
+)
+KERNEL_COMMANDS = frozenset({"update", "undo", "rnd", "stats", "fix", "model", "name", "tag"})
 STEP_VERBS = frozenset({"move", "trash"})
 COMMAND_VERBS = frozenset({"open", "reveal"})
 LABELS = frozenset({"one", "many"})
@@ -136,6 +138,8 @@ class _KindRecord(NamedTuple):
     labels: Mapping[str, str] = NOTHING
     lint: Optional[Callable[[Sequence[Found], Context], Plan]] = None
     derive: Mapping[str, Callable[[Found], Optional[str]]] = NOTHING
+    nameable: tuple = ()
+    tags: Optional[Callable[[Context], Sequence[str]]] = None
 
 
 class Kind(_KindRecord):
@@ -179,12 +183,21 @@ def problems(kind: Kind) -> list:
         (set(kind.labels) <= LABELS, f"labels should be among {sorted(LABELS)}"),
         (all(key.isidentifier() and key.islower() for key in kind.derive), "derived keys should be lowercase identifiers"),
         (all(callable(producer) for producer in kind.derive.values()), "derived producers should be callable"),
+        (set(kind.nameable) <= set(kind.fields), "nameable should name the kind's fields"),
+        (kind.tags is None or callable(kind.tags), "tags should be callable with the context, or None"),
         (all(isinstance(value, str) for value in kind.labels.values()), "labels should be strings"),
     )
     return [message for passed, message in checks if not passed]
 
 
 class roots_from(NamedTuple):
+    setting: str
+
+    def __call__(self, ctx: Context) -> list:
+        return [line.strip() for line in ctx.setting(self.setting).splitlines() if line.strip()]
+
+
+class lines_from(NamedTuple):
     setting: str
 
     def __call__(self, ctx: Context) -> list:

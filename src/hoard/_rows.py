@@ -7,6 +7,12 @@ from hoard.contract import Context, Found, Kind
 from hoard.items import Head, Item, Mod
 
 SYSTEM_MODS = (Mod("shift", "open", "Open"), Mod("alt", "reveal", "Reveal in Finder"))
+TAG_MOD = Mod("cmd", "pick", "Tag…")
+
+
+def mods_for(kind: Kind, reachable: bool) -> tuple:
+    found = SYSTEM_MODS if reachable else ()
+    return found + ((TAG_MOD,) if kind.tags else ())
 
 
 def counted(kind: Kind, count: int) -> str:
@@ -38,7 +44,7 @@ def entity_item(kind: Kind, row: Row, verb: Optional[str] = None) -> Item:
         icon=row.icon,
         locator=nearest.locator if nearest else None,
         verb=verb or kind.default_verb(found),
-        mods=SYSTEM_MODS if reachable else (),
+        mods=mods_for(kind, reachable),
     )
 
 

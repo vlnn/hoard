@@ -6,7 +6,7 @@ import sqlite3
 import sys
 from typing import NamedTuple
 
-from hoard import _db
+from hoard import _db, _models
 from hoard.contract import Context, Kind, Storage
 
 LABELS = {"ok": "ok", "warn": "warn", "fail": "FAIL"}
@@ -113,12 +113,24 @@ def setting_check(ctx: Context, variable: str, label: str) -> Check:
     return Check("setting", f"{label}: {value}" if value else f"{label}: not set", "ok" if value else "warn")
 
 
+def server_check(ctx: Context, role: str) -> Check:
+    from hoard._http import ModelError
+
+    url = _models.url_of(ctx, role)
+    try:
+        offered = _models.available(url)
+    except ModelError:
+        return Check(f"{role} server", f"{url} not reachable", "warn")
+    return Check(f"{role} server", " · ".join([url, *offered]), "ok")
+
+
 def checks(kind: Kind, ctx: Context, settings=()) -> Report:
     found = [kernel_check(), python_check(), *sqlite_checks()]
     found += [folder_check("data folder", ctx.data), folder_check("cache folder", ctx.cache)]
     found += [setting_check(ctx, variable, label) for variable, label in settings]
     for storage in kind.storages:
         found += storage_checks(storage, ctx)
+    found += [server_check(ctx, role) for role in _models.configured(ctx)]
     if passed(found, "fts5"):
         found.append(index_check(kind, ctx))
     return Report(tuple(found))

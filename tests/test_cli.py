@@ -66,7 +66,7 @@ def test_act_update_starts_the_worker(alfred, capsys, mocker):
 
 def test_act_update_while_running_says_so(alfred, capsys, mocker):
     mocker.patch("hoard._worker.spawn", return_value=False)
-    assert run(capsys, "act", "update") == "Already updating\n", "a second update should not start a worker"
+    assert run(capsys, "act", "update") == "Already working\n", "a second job should not start a worker"
 
 
 @pytest.mark.parametrize("ok, code", [(True, 0), (False, 1)])

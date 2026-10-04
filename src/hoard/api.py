@@ -64,6 +64,36 @@ def plan(kind: Kind, typed: str = "", ctx: Optional[Context] = None) -> list:
         con.close()
 
 
+def ask(kind: Kind, ctx: Optional[Context] = None, questions: Optional[list] = None) -> int:
+    from hoard import _ask
+
+    ctx = context(kind, ctx)
+    con = open_database(kind, ctx)
+    try:
+        return _ask.run(con, kind, ctx, questions)
+    finally:
+        con.close()
+
+
+def ask_dry_run(kind: Kind, ctx: Optional[Context] = None, questions: Optional[list] = None) -> list:
+    from hoard import _ask
+
+    ctx = context(kind, ctx)
+    con = open_database(kind, ctx)
+    try:
+        return _ask.dry_run(con, kind, ctx, questions)
+    finally:
+        con.close()
+
+
+def __getattr__(name: str):
+    if name == "ModelError":
+        from hoard._http import ModelError
+
+        return ModelError
+    raise AttributeError(f"module 'hoard.api' has no attribute {name!r}")
+
+
 def doctor(kind: Kind, ctx: Optional[Context] = None, settings=()):
     from hoard import _doctor
 

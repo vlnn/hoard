@@ -8,6 +8,7 @@ USAGE = """usage: python3 -m hoard <kind module> <mode>
   update [--full]           read every storage now
   worker update             the detached background update
   plan [words]              print the fix plan without applying it
+  ask [name|tag] [--dry-run]  ask the chat model now, or print what would be asked
   doctor                    check python, sqlite, folders and storages"""
 
 
@@ -33,18 +34,21 @@ def filter_mode(module: str, args: list) -> None:
         print(alfred.render(items))
 
 
-def start_update(module: str) -> str:
+BACKGROUND = {"update": "Updating the index", "ask": "Asking the model"}
+
+
+def start_job(module: str, job: str) -> str:
     from hoard import _worker, api
 
     ctx = api.context(load_kind(module))
-    return "Updating the index" if _worker.spawn(module, "update", ctx) else "Already updating"
+    return BACKGROUND[job] if _worker.spawn(module, job, ctx) else "Already working"
 
 
 def act_mode(module: str, args: list) -> None:
     from hoard import api
 
     verb, ids = (args[0], args[1:]) if args else ("", [])
-    print(start_update(module) if verb == "update" else api.act(load_kind(module), verb, ids))
+    print(start_job(module, verb) if verb in BACKGROUND else api.act(load_kind(module), verb, ids))
 
 
 def update_mode(module: str, args: list) -> None:
@@ -53,18 +57,50 @@ def update_mode(module: str, args: list) -> None:
     print(f"{api.update(load_kind(module), full='--full' in args)} found")
 
 
+TRUE = {"1", "true", "yes", "on"}
+
+
+def ask_quietly(kind, ctx) -> None:
+    from hoard import api
+
+    try:
+        print(f"{api.ask(kind, ctx)} answered", flush=True)
+    except api.ModelError as error:
+        print(f"ask stopped: {error}", file=sys.stderr, flush=True)
+
+
+def run_job(kind, ctx, job: str) -> None:
+    from hoard import api
+
+    if job == "update":
+        print(f"{api.update(kind, ctx)} found", flush=True)
+    if job == "ask" or ctx.setting("hoard_ask_on_update").strip().lower() in TRUE:
+        ask_quietly(kind, ctx)
+
+
 def worker_mode(module: str, args: list) -> None:
     from hoard import _worker, api
 
-    if args != ["update"]:
+    if args not in (["update"], ["ask"]):
         usage()
     kind = load_kind(module)
     ctx = api.context(kind)
     try:
         with _worker.holding_lock(ctx):
-            print(f"{api.update(kind, ctx)} found", flush=True)
+            run_job(kind, ctx, args[0])
     except _worker.Busy:
         print("another worker holds the lock", file=sys.stderr)
+
+
+def ask_mode(module: str, args: list) -> None:
+    from hoard import api
+
+    questions = [word for word in args if word in ("name", "tag")] or None
+    kind = load_kind(module)
+    if "--dry-run" in args:
+        print("\n".join(api.ask_dry_run(kind, questions=questions)))
+        return
+    print(f"{api.ask(kind, questions=questions)} answered")
 
 
 def doctor_mode(module: str, args: list) -> None:
@@ -87,6 +123,7 @@ def plan_mode(module: str, args: list) -> None:
 
 MODES = {
     "plan": plan_mode,
+    "ask": ask_mode,
     "filter": filter_mode,
     "act": act_mode,
     "update": update_mode,
