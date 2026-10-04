@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 
+from hoard._models import SETTINGS
 from hoard.build._workflow import Setting, Workflow
 
 PYTHON = "/usr/bin/python3"
@@ -111,6 +112,10 @@ def user_configuration(setting: Setting) -> dict:
     }
 
 
+def kernel_settings() -> tuple:
+    return tuple(Setting(variable, label, kind_of, description) for variable, label, kind_of, description in SETTINGS)
+
+
 def info_plist(workflow: Workflow, keyword: str, version: str = "") -> dict:
     chain = [script_filter(workflow, keyword), action(workflow), notification(workflow)]
     return {
@@ -124,7 +129,7 @@ def info_plist(workflow: Workflow, keyword: str, version: str = "") -> dict:
         "objects": chain,
         "readme": "",
         "uidata": {item["uid"]: {"xpos": 50 + 250 * n, "ypos": 50} for n, item in enumerate(chain)},
-        "userconfigurationconfig": [user_configuration(setting) for setting in workflow.configuration],
+        "userconfigurationconfig": [user_configuration(setting) for setting in workflow.configuration + kernel_settings()],
         "variablesdontexport": [],
         "version": version,
         "webaddress": "",

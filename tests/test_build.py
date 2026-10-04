@@ -160,3 +160,10 @@ def test_check_passes_for_a_kind_whose_folders_are_not_set_yet(repo):
         "            storages=(Storage('shelf', roots_from('shelf'), str),))\n"
     )
     assert build.check(repo) == "ok: Index is empty", "rows explaining missing folders should not fail the check"
+
+
+def test_every_workflow_gets_the_kernel_model_settings(plist):
+    variables = [entry["variable"] for entry in plist["userconfigurationconfig"]]
+    assert variables[-3:] == ["hoard_chat_url", "hoard_embeddings_url", "hoard_ask_on_update"], (
+        "the model settings belong to hoard and should follow the kind's own"
+    )

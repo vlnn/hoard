@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 
-from hoard import _commands, _fold, _index, _journal, _plan, _rows, _search, _system
+from hoard import _commands, _fold, _index, _journal, _models, _plan, _rows, _search, _system
 from hoard.contract import Context, Kind, Verb
 
 BATCH = "batch:"
@@ -96,6 +96,13 @@ def apply_plan(con: sqlite3.Connection, kind: Kind, ctx: Context, ids) -> str:
     return fixed(changes, len(steps) - len(changes))
 
 
+def use_model(con: sqlite3.Connection, ids) -> str:
+    _, role, model = ids[0].split(":", 2)
+    _models.use(con, role, model)
+    con.commit()
+    return f"{role.title()} model: {model}"
+
+
 def dispatch(con: sqlite3.Connection, kind: Kind, ctx: Context, verb: str, ids) -> str:
     if verb in _system.SYSTEM_VERBS:
         return _system.hand_over(kind, resolve(con, kind, ctx, ids), verb)
@@ -103,6 +110,8 @@ def dispatch(con: sqlite3.Connection, kind: Kind, ctx: Context, verb: str, ids) 
         return undo_last(con, kind, ctx)
     if verb == "apply":
         return apply_plan(con, kind, ctx, ids)
+    if verb == "use_model":
+        return use_model(con, ids)
     if verb in kind.verbs:
         return run_kind_verb(con, kind, ctx, verb, ids)
     return f"No verb {verb}"

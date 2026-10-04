@@ -157,3 +157,13 @@ def test_identical_files_in_one_storage_are_two_sightings_of_one_entity(tmp_db, 
     reader.reset_mock()
     _index.update(tmp_db, kind, ctx)
     reader.assert_not_called()
+
+
+def test_update_stores_the_kinds_evidence_and_its_hash(tmp_db, ctx, shelf):
+    import hashlib
+
+    write_note(shelf, "dune", "Dune", "Frank Herbert", "1965", body="spice")
+    _index.update(tmp_db, FakeKind, ctx)
+    evidence, evidence_hash = tmp_db.execute("SELECT evidence, evidence_hash FROM entities").fetchone()
+    assert evidence == "Dune\nFrank Herbert\n1965\nspice", "evidence should be what the kind says it is"
+    assert evidence_hash == hashlib.blake2b(evidence.encode(), digest_size=16).hexdigest(), "the hash keys the answer cache"

@@ -6,8 +6,8 @@ from types import MappingProxyType
 from typing import Any, Callable, Mapping, NamedTuple, Optional, Sequence
 
 NOTHING = MappingProxyType({})
-KERNEL_VERBS = frozenset({"open", "reveal", "update", "undo", "apply"})
-KERNEL_COMMANDS = frozenset({"update", "undo", "rnd", "stats", "fix"})
+KERNEL_VERBS = frozenset({"open", "reveal", "update", "undo", "apply", "use_model"})
+KERNEL_COMMANDS = frozenset({"update", "undo", "rnd", "stats", "fix", "model"})
 STEP_VERBS = frozenset({"move", "trash"})
 COMMAND_VERBS = frozenset({"open", "reveal"})
 LABELS = frozenset({"one", "many"})

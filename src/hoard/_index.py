@@ -85,8 +85,20 @@ def read_safely(storage: Storage, path: str) -> Optional[Entity]:
         return None
 
 
+def digest(text: str) -> str:
+    return hashlib.blake2b(text.encode("utf-8"), digest_size=16).hexdigest()
+
+
 def text_hash(entity: Entity) -> str:
-    return hashlib.blake2b(entity.text.encode("utf-8"), digest_size=16).hexdigest()
+    return digest(entity.text)
+
+
+def evidence_of(kind: Kind, entity: Entity) -> str:
+    try:
+        return kind.evidence(entity)
+    except Exception as error:
+        print(f"evidence: {entity.title}: {error!r}", file=sys.stderr)
+        return ""
 
 
 FAILED = object()
@@ -105,13 +117,15 @@ def store_sighting(con: sqlite3.Connection, storage: str, entity: Entity, path: 
 
 
 def store_entity(run: Run, entity: Entity, stat: os.stat_result) -> None:
+    evidence = evidence_of(run.kind, entity)
     run.con.execute(
         """
-        INSERT INTO entities(id, title, fields_json, icon, size, mtime, text_hash, first_seen, last_seen)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO entities(id, title, fields_json, icon, size, mtime, text_hash, first_seen, last_seen, evidence, evidence_hash)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             title = excluded.title, fields_json = excluded.fields_json, icon = excluded.icon,
-            size = excluded.size, text_hash = excluded.text_hash, last_seen = excluded.last_seen
+            size = excluded.size, text_hash = excluded.text_hash, last_seen = excluded.last_seen,
+            evidence = excluded.evidence, evidence_hash = excluded.evidence_hash
         """,
         (
             entity.id,
@@ -123,6 +137,8 @@ def store_entity(run: Run, entity: Entity, stat: os.stat_result) -> None:
             text_hash(entity),
             run.number,
             run.number,
+            evidence,
+            digest(evidence),
         ),
     )
 

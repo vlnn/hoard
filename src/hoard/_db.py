@@ -94,7 +94,13 @@ ALTER TABLE sightings_by_locator RENAME TO sightings;
 CREATE INDEX sightings_id ON sightings(id, storage);
 """
 
-MIGRATIONS = (SCHEMA_V1, JOURNAL_KIND_OF_CHANGE, SIGHTINGS_BY_LOCATOR)
+ENTITY_EVIDENCE = """
+ALTER TABLE entities ADD COLUMN evidence TEXT;
+ALTER TABLE entities ADD COLUMN evidence_hash TEXT;
+UPDATE sightings SET mtime = -1;
+"""
+
+MIGRATIONS = (SCHEMA_V1, JOURNAL_KIND_OF_CHANGE, SIGHTINGS_BY_LOCATOR, ENTITY_EVIDENCE)
 
 CACHE_TABLES = frozenset({"entities", "sightings", "fts", "derived", "storage_state"})
 STORE_TABLES = frozenset({"tags", "answers", "vectors", "neighbours", "journal", "exchanges"})

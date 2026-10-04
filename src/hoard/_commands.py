@@ -4,7 +4,7 @@ import sqlite3
 import time
 
 import hoard
-from hoard import _db, _fold, _journal, _plan, _rows, _search
+from hoard import _db, _fold, _journal, _models, _plan, _rows, _search
 from hoard.contract import Command, Context, Kind, everything
 from hoard.items import Head, Item
 
@@ -143,10 +143,33 @@ def search_rows(con, kind: Kind, ctx: Context, typed: str) -> tuple:
     return found or (_rows.no_match(typed),)
 
 
+def model_item(role: str, model: str, chosen: str) -> Item:
+    state = "in use" if model == chosen else "↩ to use"
+    return Item(f"model:{role}:{model}", model, f"{role} · {state}", verb="use_model")
+
+
+def role_rows(con, ctx: Context, role: str) -> list:
+    from hoard._http import ModelError
+
+    url = _models.url_of(ctx, role)
+    try:
+        offered = _models.available(url)
+    except ModelError:
+        return [Head(f"model:{role}", f"{role.title()} server not reachable", url)]
+    chosen = _models.model_of(con, role)
+    return [Head(f"model:{role}", f"{role.title()} models", url)] + [model_item(role, m, chosen) for m in offered]
+
+
+def model_rows(con, kind, ctx, words) -> tuple:
+    return tuple(row for role in _models.configured(ctx) for row in role_rows(con, ctx, role))
+
+
 def rows_for(con: sqlite3.Connection, kind: Kind, ctx: Context, typed: str) -> tuple:
     word, rest = _search.split_command(typed)
     if word == "update":
         return update_rows(con, kind, ctx, rest)
+    if word == "model" and _models.configured(ctx):
+        return model_rows(con, kind, ctx, rest)
     if _search.is_empty(con):
         return _rows.empty_index_rows(kind, ctx)
     if word in KERNEL_COMMANDS:

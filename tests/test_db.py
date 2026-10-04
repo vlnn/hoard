@@ -74,9 +74,27 @@ def test_version_two_sightings_survive_the_rekey(tmp_path):
     old.commit()
     old.close()
     con = _db.connect(path)
-    assert con.execute("SELECT * FROM sightings").fetchall() == [("id1", "shelf", "/shelf/a", 1.0, 3)], (
+    assert con.execute("SELECT id, storage, locator, size FROM sightings").fetchall() == [("id1", "shelf", "/shelf/a", 3)], (
         "rekeying sightings should keep every row"
     )
     con.execute("INSERT INTO sightings VALUES ('id1', 'shelf', '/shelf/b', 1.0, 3)")
     assert con.execute("SELECT count(*) FROM sightings").fetchone() == (2,), "one entity may now sit twice in a storage"
+    con.close()
+
+
+def test_version_four_adds_evidence_and_asks_for_a_reread(tmp_path):
+    import sqlite3
+
+    path = str(tmp_path / "v3.sqlite")
+    old = sqlite3.connect(path)
+    for script in _db.MIGRATIONS[:3]:
+        old.executescript(script)
+    old.execute("INSERT INTO meta VALUES ('schema_version', '3')")
+    old.execute("INSERT INTO sightings VALUES ('id1', 'shelf', '/shelf/a', 1.0, 3)")
+    old.commit()
+    old.close()
+    con = _db.connect(path)
+    columns = [row[1] for row in con.execute("PRAGMA table_info(entities)")]
+    assert {"evidence", "evidence_hash"} <= set(columns), "entities should carry evidence and its hash"
+    assert con.execute("SELECT mtime FROM sightings").fetchone() == (-1,), "every file should look changed once"
     con.close()
