@@ -1,0 +1,98 @@
+from __future__ import annotations
+
+import sys
+
+USAGE = """usage: python3 -m hoard <kind module> <mode>
+  filter [--text] [query]   rows for what was typed, as Alfred JSON or plain text
+  act <verb> [ids…]         run a verb and print the notification line
+  update [--full]           read every storage now
+  worker update             the detached background update
+  doctor                    check python, sqlite, folders and storages"""
+
+
+def load_kind(module: str):
+    import importlib
+
+    return importlib.import_module(module).KIND
+
+
+def filter_mode(module: str, args: list) -> None:
+    from hoard import api
+
+    as_text = args[:1] == ["--text"]
+    typed = " ".join(args[1:] if as_text else args)
+    items = api.filter(load_kind(module), typed)
+    if as_text:
+        from hoard.render import text
+
+        print("\n".join(text.render(items)))
+    else:
+        from hoard.render import alfred
+
+        print(alfred.render(items))
+
+
+def start_update(module: str) -> str:
+    from hoard import _worker, api
+
+    ctx = api.context(load_kind(module))
+    return "Updating the index" if _worker.spawn(module, "update", ctx) else "Already updating"
+
+
+def act_mode(module: str, args: list) -> None:
+    from hoard import api
+
+    verb, ids = (args[0], args[1:]) if args else ("", [])
+    print(start_update(module) if verb == "update" else api.act(load_kind(module), verb, ids))
+
+
+def update_mode(module: str, args: list) -> None:
+    from hoard import api
+
+    print(f"{api.update(load_kind(module), full='--full' in args)} found")
+
+
+def worker_mode(module: str, args: list) -> None:
+    from hoard import _worker, api
+
+    if args != ["update"]:
+        usage()
+    kind = load_kind(module)
+    ctx = api.context(kind)
+    try:
+        with _worker.holding_lock(ctx):
+            print(f"{api.update(kind, ctx)} found", flush=True)
+    except _worker.Busy:
+        print("another worker holds the lock", file=sys.stderr)
+
+
+def doctor_mode(module: str, args: list) -> None:
+    from hoard import api
+
+    report = api.doctor(load_kind(module))
+    print("\n".join(report.lines()))
+    sys.exit(0 if report.ok else 1)
+
+
+MODES = {
+    "filter": filter_mode,
+    "act": act_mode,
+    "update": update_mode,
+    "worker": worker_mode,
+    "doctor": doctor_mode,
+}
+
+
+def usage() -> None:
+    print(USAGE, file=sys.stderr)
+    sys.exit(2)
+
+
+def main(module=None, argv=None) -> None:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if module is None:
+        module, argv = (argv[0], argv[1:]) if argv else (None, [])
+    mode = MODES.get(argv[0]) if argv else None
+    if module is None or mode is None:
+        usage()
+    mode(module, argv[1:])
