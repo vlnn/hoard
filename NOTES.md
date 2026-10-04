@@ -1,8 +1,9 @@
 # NOTES
 
 Three things the implementation plan asks this file to hold: every place the kernel still
-assumes files and folders (Phase 3 is measured against it), where the code departs from the
-plan, and what can only be checked on the Mac.
+assumes files and folders, where the code departs from the plan, and what can only be checked on
+the Mac. Phases 3–5 of the plan (music files, Spotify, a second API kind) were replaced by one
+Phase 3, Pictures; see the end of this file.
 
 ## Where the kernel still assumes a path, a file or a folder
 
@@ -10,19 +11,21 @@ The kernel's own files (database, cache, lock, log, icons) are not on this list;
 
 1. **Storages are folders.** `_index.walk` lists files under each root and calls the reader with a
    path; `Storage.mounted` defaults to `os.path.isdir`; `roots_from` reads one folder per line.
-   An API storage (Spotify, Phase 4) needs a second walker behind `update_storage`.
+   An API storage needs a second walker behind `update_storage`; none is planned for 1.0.
 2. **Change detection is `(locator, mtime, size)`** from `os.stat`; an API storage needs its own cursor.
-3. **Newest first is file mtime.** `entities.mtime` is the newest sighting's mtime; Phase 4 makes the
-   sort key kind-supplied.
+3. **Newest first is file mtime.** `entities.mtime` is the newest sighting's mtime; an API kind
+   would need a kind-supplied sort key.
 4. **Reachability is "under a mounted root"** (`_fold`); a sighting without a locator counts as
-   reachable, which Phase 4 must revisit with the last worker run's result.
+   reachable, which an API kind would revisit with the last worker run's result.
 5. **`open` and `reveal` hand the locator to macOS `open`** (`_system`).
 6. **Plan steps are file-system moves** (`_plan`): `move` within a root, `trash` into
    `<root>/.hoard-trash/`. A kind whose storage is not a folder has no steps to offer yet.
-7. **Covers arrive as bytes and are cached as files**; `Kind.icon` returns a bundle-relative path.
+7. **Covers arrive as bytes and are cached as files**; `Kind.icon` returns a path, bundle-relative
+   or absolute (Pictures returns the picture itself).
 8. **Derived producers receive a `Found`** and, so far, every producer reads `found.nearest.locator`.
-9. **`hoard.testing` ships `make_epub` and `make_fb2`**, as the plan asks; `make_mp3` and
-   `make_flac` join them in Phase 3.
+9. **`hoard.testing` ships `make_epub` and `make_fb2`**, as the plan asks. Picture builders
+   (`make_jpeg`, `make_png`, `make_svg`, an EXIF/TIFF encoder) live in hoard-pictures' own tests:
+   they serve one kind, so the library does not carry them.
 
 ## Departures from the plan
 
@@ -81,8 +84,10 @@ The kernel's own files (database, cache, lock, log, icons) are not on this list;
 - **Reserved:** commands `model`, `name`, `tag`, `like`; verbs `use_model`, `ask`, `accept`, `pick`,
   `set_tag`, `accept_tags`, `like`, `embed`. `model`, `name` and `like` are ordinary search words
   until their server is set, and `tag` until the kind has tags.
-- **Neighbours** are computed in pure Python on store: 0.7 s per insert among 10 000 × 1 024 here.
-  A full re-embed of a large library is the place to add a batch mode or optional numpy.
+- **Neighbours are ranked when asked** (since 1.0, schema v5). Ranking on store was quadratic:
+  17.7 s for 1 000 local vectors. Each vector now carries a 128-bit signature from sparse random
+  planes, read through a covering index; `like` shortlists the 200 closest signatures and scores
+  those exactly, about 15 ms among 10 000 × 1 024 here. Vectors stored before v5 are made again.
 
 ## To verify on the Mac
 
@@ -94,6 +99,8 @@ The kernel's own files (database, cache, lock, log, icons) are not on this list;
 - **`filtermode = 1` means folders** in a `filepicker` setting; unconfirmed. Books uses text areas.
 - **The canvas wires filter → action → notification**, and ⇧↩ / ⌥↩ open and reveal.
 - **`osascript` may ask once for permission** to control Alfred; the picker and ⌃↩ need it.
+- **Pictures in Alfred:** a jpg or png path as the row icon shows the picture; whether Alfred draws
+  an svg icon is unconfirmed.
 - **Phase 2 exit on a real library:** `like` gives sensible neighbours with your embeddings model,
   tag suggestions are accepted in a batch and undone, and `bk` is as fast as before.
 
@@ -115,3 +122,21 @@ The kernel's own files (database, cache, lock, log, icons) are not on this list;
 | D | `derived` table and its hook, no producer in Books | done |
 | D | `docs/writing-a-kind.md` | done |
 | D | `hoard 0.1.0` tagged, Books on the tag, CI from a clean clone | tag and `make ci` ready; Books switches once the library has a URL |
+
+## Phase 3: Pictures
+
+The plan's Phases 3–5 were replaced by one kind, `hoard-pictures` (keyword `pi`): every jpg, jpeg,
+png and svg under the folders in its "Picture folders" setting, and similar pictures by metadata.
+
+| Item | State |
+| --- | --- |
+| 3a `LocalVectors(name, vector)`: like without a model server, vectors made by update | done |
+| 3a like ranked when asked from vector signatures, update linear | done |
+| 3b readers on the standard library: JPEG EXIF (both byte orders, orientation, GPS), PNG `IHDR`, `eXIf`, `tEXt`, `iTXt`, SVG size, `viewBox`, `title`, `desc` | done |
+| 3b feature vector: time and place over many wavelengths, camera, lens and folder buckets, shape | done |
+| 3b each picture is its own row icon | done; Alfred to confirm |
+| 3c `docs/writing-a-kind.md` on `LocalVectors`, this file, `hoard 1.0.0` | done |
+
+Measured here: an update over 3 000 jpegs takes 3.6 s, `like` among them 21 ms. Pictures has no
+verbs or plan; the kernel's open and reveal are enough. The folder assumptions above all hold for
+it, which is why it could be written without touching the walker.

@@ -25,7 +25,7 @@ def path_source(hoard_source, target: Path) -> str:
 
 def git_source(url: str, tag: Optional[str]) -> str:
     if not tag:
-        raise ValueError("a git dependency on hoard should pin a tag, e.g. v0.1.0")
+        raise ValueError("a git dependency on hoard should pin a tag, e.g. v1.0.0")
     return f'{{ git = "{url}", tag = "{tag}" }}'
 
 
@@ -91,7 +91,7 @@ def arguments(argv=None) -> argparse.Namespace:
     parser.add_argument("--into", default=".", help="folder to create hoard-<kind> in")
     parser.add_argument("--hoard", help="path to the library checkout the kind depends on")
     parser.add_argument("--hoard-git", help="git URL of the library, to depend on a tag instead of a path")
-    parser.add_argument("--hoard-tag", help="the library tag to pin with --hoard-git, e.g. v0.1.0")
+    parser.add_argument("--hoard-tag", help="the library tag to pin with --hoard-git, e.g. v1.0.0")
     return parser.parse_args(argv)
 
 

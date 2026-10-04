@@ -1,7 +1,7 @@
 # hoard
 
-A small library for Alfred workflows over collections of things. A *kind* (books, music files,
-a Spotify library…) lives in its own repository, declares itself as one `KIND = Kind(...)`,
+A small library for Alfred workflows over collections of things. A *kind* (books, pictures,
+music files…) lives in its own repository, declares itself as one `KIND = Kind(...)`,
 passes the conformance suite shipped here, and builds a `.alfredworkflow` that vendors this
 library next to it. Nothing is installed on the machine that runs the workflow; the bundle runs
 on the system `/usr/bin/python3` with the standard library only.
@@ -10,7 +10,7 @@ on the system `/usr/bin/python3` with the standard library only.
 
 | Module | For |
 | --- | --- |
-| `hoard.contract` | `Kind`, `Storage`, `Entity`, `Sighting`, `Found`, `Verb`, `Command`, `Change`, `Plan`, `Step`, `Context`, `TextEmbedding`, `roots_from`, `lines_from`, `lazy` |
+| `hoard.contract` | `Kind`, `Storage`, `Entity`, `Sighting`, `Found`, `Verb`, `Command`, `Change`, `Plan`, `Step`, `Context`, `TextEmbedding`, `LocalVectors`, `roots_from`, `lines_from`, `lazy` |
 | `hoard.api` | `filter(kind, typed)`, `act(kind, verb, ids)`, `update(kind)`, `plan(kind)`, `ask(kind)`, `embed(kind)`, `doctor(kind)` |
 | `hoard.testing` | the conformance suite (`Conformance`), `FakeKind`, `make_epub`, `make_fb2`, fixtures `temp_tree`, `context_with` |
 | `hoard.build` | `python3 -m hoard.build [--check \| --link]` from a kind repository |

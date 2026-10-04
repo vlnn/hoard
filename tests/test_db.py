@@ -98,3 +98,23 @@ def test_version_four_adds_evidence_and_asks_for_a_reread(tmp_path):
     assert {"evidence", "evidence_hash"} <= set(columns), "entities should carry evidence and its hash"
     assert con.execute("SELECT mtime FROM sightings").fetchone() == (-1,), "every file should look changed once"
     con.close()
+
+
+def test_version_five_keeps_vectors_unsigned_and_drops_neighbours(tmp_path):
+    import sqlite3
+
+    path = str(tmp_path / "v4.sqlite")
+    old = sqlite3.connect(path)
+    for script in _db.MIGRATIONS[:4]:
+        old.executescript(script)
+    old.execute("INSERT INTO meta VALUES ('schema_version', '4')")
+    old.execute("INSERT INTO vectors VALUES ('m', 'id1', x'0000803f')")
+    old.execute("INSERT INTO neighbours VALUES ('m', 'id1', 0, 'id2', 0.9)")
+    old.commit()
+    old.close()
+    con = _db.connect(path)
+    assert "neighbours" not in table_names(con), "neighbours should be gone; like ranks when asked"
+    assert con.execute("SELECT id, sig FROM vectors").fetchall() == [("id1", None)], (
+        "old vectors should stay, unsigned, until they are made again"
+    )
+    con.close()

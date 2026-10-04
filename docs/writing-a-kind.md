@@ -29,7 +29,7 @@ workflow description in `workflow/plist.toml`, an icon, and a Makefile:
 | `make ci` | clones the repository afresh, installs, tests and checks the bundle |
 
 While the library and the kind change together, the kind depends on a hoard checkout by path. Once
-hoard is tagged, pin it instead: `--hoard-git <url> --hoard-tag v0.1.0` for a new kind, or edit
+hoard is tagged, pin it instead: `--hoard-git <url> --hoard-tag v1.0.0` for a new kind, or edit
 `[tool.uv.sources]` in an existing one. `make ci` only passes once the dependency no longer needs a
 sibling checkout.
 
@@ -212,6 +212,32 @@ KIND = Kind(
   1 500 characters. `bk like <words>`, `bk like #<id>` or ⌃↩ on any row lists the nearest entities with
   a percentage. With no words, `like` starts from `last_opened(ctx)` if the kind supplies it, else from
   the newest entity. Set `like=None` to turn it off.
+
+### Like without a model: `LocalVectors`
+
+When similarity is a matter of metadata rather than meaning, compute the numbers yourself:
+
+```python
+KIND = Kind(
+    ...,
+    like=LocalVectors("metadata", lazy("pictures.features", "vector")),
+)
+```
+
+`vector(found)` returns a sequence of floats, the same length for every entity. Update calls it
+once per entity that has no vector yet, in the background, and stores it scaled to unit length, so
+`like` works with no server set and never offers to embed. If it raises, that entity is left out
+and the error goes to the worker log. Change the name when you change what the vector means; the
+old vectors are then ignored and the next update makes new ones.
+
+Similarity is the cosine between vectors, so give each part of the metadata its own block and
+scale the blocks by how much they should count. Hoard Pictures is the worked example: time and
+place as sines and cosines over many wavelengths (near in time means most of them agree), camera,
+lens and folder hashed into one-hot buckets with `zlib.crc32` (Python's `hash` changes every
+process), shape as one-hot. A missing value is a block of zeros, which neither helps nor hurts.
+
+`like` shortlists by a 128-bit signature of each vector and scores the shortlist exactly, so it
+stays a keystroke over tens of thousands of entities; vectors of a few hundred numbers are plenty.
 
 `evidence(entity)` is what every model sees, so make it the title and fields a person would use to
 recognise the thing, plus a short excerpt. `python3 -m hoard books ask name --dry-run` prints exactly
