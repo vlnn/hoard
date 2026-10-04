@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections import Counter
 
 from hoard import _answers, _fold, _models, _names, _questions, _rows, _search, _tags
 from hoard.contract import Context, Kind
@@ -65,20 +66,42 @@ def picker_head(con: sqlite3.Connection, kind: Kind, target: str) -> Head:
     return Head("picker", row[0] if row else "Nothing to tag", "pick a tag")
 
 
+def guess_first(tags: list, guessed) -> list:
+    return sorted(tags, key=lambda tag: tag != guessed.tag) if guessed else tags
+
+
+def choice_note(tag: str, current: set, guessed) -> str:
+    notes = ["current"] if tag in current else []
+    notes += [f"suggested · {guessed.percent}"] if guessed and tag == guessed.tag else []
+    return " · ".join(notes)
+
+
 def picker_rows(con, kind: Kind, ctx: Context, target: str, typed: str) -> tuple:
-    current = {tag for tag, _ in _tags.tags_of(con, target[1:])} if not target.startswith(EVERY) else set()
-    tags = _questions.tag_list(kind, ctx)
+    single = not target.startswith(EVERY)
+    current = {tag for tag, _ in _tags.tags_of(con, target[1:])} if single else set()
+    guessed = _tags.guess(con, target[1:]) if single and picker_target_exists(con, target) else None
+    tags = guess_first(_questions.tag_list(kind, ctx), guessed)
     shown = [tag for tag in tags if typed.lower() in tag.lower()]
-    items = [Item(choice(target, tag), tag, "current" if tag in current else "", verb="set_tag") for tag in shown]
+    items = [Item(choice(target, tag), tag, choice_note(tag, current, guessed), verb="set_tag") for tag in shown]
     if typed and typed.lower() not in (tag.lower() for tag in tags):
         items.append(Item(choice(target, typed), f"New tag: {typed}", verb="set_tag"))
     return (picker_head(con, kind, target),) + tuple(items)
 
 
+def picker_target_exists(con: sqlite3.Connection, target: str) -> bool:
+    return con.execute("SELECT 1 FROM entities WHERE id = ?", (target[1:],)).fetchone() is not None
+
+
 def tag_item(con: sqlite3.Connection, kind: Kind, ctx: Context, row) -> Item:
     item = _rows.entity_item(kind, row, verb="pick", ctx=ctx)
-    guess = _tags.suggestion(con, item.id)
-    return item._replace(subtitle=f"{item.subtitle} · {guess}?") if guess else item
+    guessed = _tags.guess(con, item.id)
+    return item._replace(subtitle=f"{guessed.tag}? {guessed.percent} · {item.subtitle}") if guessed else item
+
+
+def tally(con: sqlite3.Connection, ids: list) -> str:
+    counts = Counter(_tags.suggestion(con, entity_id) for entity_id in ids)
+    ordered = sorted(counts.items(), key=lambda pair: (-pair[1], pair[0]))
+    return " · ".join(f"{tag} {count}" for tag, count in ordered)
 
 
 def suggested_ids(con: sqlite3.Connection, typed: str) -> list:
@@ -88,9 +111,9 @@ def suggested_ids(con: sqlite3.Connection, typed: str) -> list:
 def tag_heads(con, kind: Kind, ctx: Context, words: list, total: int) -> list:
     typed = " ".join(words)
     heads = ask_head(con, kind, ctx, _questions.TAG)
-    guessed = len(suggested_ids(con, typed))
+    guessed = suggested_ids(con, typed)
     if guessed:
-        heads.append(Head("accept tags", f"Accept {guessed} suggested", "↩ tags every row below with its guess", verb="accept_tags", arg=f"suggested:{typed}"))
+        heads.append(Head("accept tags", f"Accept {len(guessed)} suggested", tally(con, guessed), verb="accept_tags", arg=f"suggested:{typed}"))
     heads.append(Head("tag all", f"Tag all {total}", "pick one tag for every row below", verb="pick", arg=f"pick:{every_target(words)}"))
     return heads
 

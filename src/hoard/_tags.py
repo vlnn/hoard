@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 import time
-from typing import Optional
+from typing import NamedTuple, Optional
 
 from hoard import _answers
 from hoard._questions import TAG
@@ -36,9 +36,22 @@ def undo(con: sqlite3.Connection, changes, ctx) -> None:
         replace(con, change.id, change.before)
 
 
-def suggestion(con: sqlite3.Connection, entity_id: str) -> Optional[str]:
+class Guess(NamedTuple):
+    tag: str
+    confidence: float
+
+    @property
+    def percent(self) -> str:
+        return f"{round(self.confidence * 100)}%"
+
+
+def guess(con: sqlite3.Connection, entity_id: str) -> Optional[Guess]:
     (evidence_hash,) = con.execute("SELECT evidence_hash FROM entities WHERE id = ?", (entity_id,)).fetchone()
     answer = _answers.fresh(con, entity_id, TAG, evidence_hash or "")
-    if not answer:
-        return None
-    return str(answer.get("tag") or "") or None
+    tag = str(answer.get("tag") or "") if answer else ""
+    return Guess(tag, float(answer.get("confidence") or 0)) if tag else None
+
+
+def suggestion(con: sqlite3.Connection, entity_id: str) -> Optional[str]:
+    found = guess(con, entity_id)
+    return found.tag if found else None

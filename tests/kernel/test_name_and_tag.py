@@ -124,11 +124,27 @@ def test_tag_lists_untagged_entities_with_the_models_guess(served, replies, shel
     replies(tagged("scifi"), tagged("fantasy", 0.4))
     api.ask(FakeKind, ctx, ["tag"])
     assert lines(ctx, "tag") == [
-        "» Accept 2 suggested | ↩ tags every row below with its guess",
+        "» Accept 2 suggested | fantasy 1 · scifi 1",
         "» Tag all 2 | pick one tag for every row below",
-        f"dune | shelf · {shelf}/dune.note · scifi?",
-        f"Ubik | shelf · Philip K. Dick · 1969 · {shelf}/ubik.note · fantasy?",
-    ], "tag should show each untagged row with the model's guess"
+        f"dune | scifi? 90% · shelf · {shelf}/dune.note",
+        f"Ubik | fantasy? 40% · shelf · Philip K. Dick · 1969 · {shelf}/ubik.note",
+    ], "the guess should lead each row, and the accept row should say which tags it applies"
+
+
+def test_the_accept_row_tallies_the_most_common_guess_first(served, replies):
+    ctx, _ = served
+    replies(tagged("scifi"), tagged("scifi"))
+    api.ask(FakeKind, ctx, ["tag"])
+    assert lines(ctx, "tag")[0] == "» Accept 2 suggested | scifi 2", "identical guesses should be counted together"
+
+
+def test_the_picker_puts_the_models_guess_first(served, replies):
+    ctx, ids = served
+    replies(tagged("scifi"), tagged("fantasy", 0.4))
+    api.ask(FakeKind, ctx, ["tag"])
+    assert lines(ctx, f"tag #{ids['ubik']}") == ["» Ubik | pick a tag", "fantasy | suggested · 40%", "scifi"], (
+        "the guess should be the first choice, so ↩ ↩ accepts it"
+    )
 
 
 def test_return_on_a_tag_row_opens_the_picker(served, mocker):
