@@ -10,13 +10,14 @@ from hoard.contract import (
     Sighting,
     Step,
     Storage,
+    TextEmbedding,
     Verb,
     lazy,
     lines_from,
     roots_from,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.2.0.dev0"
 
 __all__ = [
     "Change",
@@ -30,6 +31,7 @@ __all__ = [
     "Sighting",
     "Step",
     "Storage",
+    "TextEmbedding",
     "Verb",
     "lazy",
     "lines_from",

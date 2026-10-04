@@ -65,6 +65,25 @@ The kernel's own files (database, cache, lock, log, icons) are not on this list;
 - `make doctor` runs doctor inside the linked workflow, which reads Alfred's folders from `info.plist`
   and the settings from `prefs.plist`; `make ci` builds and checks a clean clone.
 
+## Phase 2 departures
+
+- **Model settings belong to hoard.** Every build appends `hoard_chat_url`, `hoard_embeddings_url`
+  and `hoard_ask_on_update` to the kind's configuration; doctor checks each server answers.
+- **Pickers reopen Alfred with `osascript`** (`tell application id "com.runningwithcrayons.Alfred" to
+  search …`) instead of an external trigger: ↩ on a tag row and ⌘↩ reopen at `tag #<id>`, ⌃↩ at
+  `like #<id>`.
+- **Evidence is computed once, at index time** (schema v4 adds `entities.evidence` and its hash;
+  the migration makes every file look changed so the next update fills it).
+- **The ask job asks and embeds**; it runs on ↩ over an "Ask N" or "Embed N new" row, or after an
+  update when `hoard_ask_on_update` is on. A dead server stops the job and leaves what was stored.
+- **Name overlays** are re-applied after every re-read from the stored answer, so they need no table
+  of their own; accepting and undoing go through the journal like any other batch.
+- **Reserved:** commands `model`, `name`, `tag`, `like`; verbs `use_model`, `ask`, `accept`, `pick`,
+  `set_tag`, `accept_tags`, `like`, `embed`. `model`, `name` and `like` are ordinary search words
+  until their server is set, and `tag` until the kind has tags.
+- **Neighbours** are computed in pure Python on store: 0.7 s per insert among 10 000 × 1 024 here.
+  A full re-embed of a large library is the place to add a batch mode or optional numpy.
+
 ## To verify on the Mac
 
 - **Keystroke budget in Alfred's debugger** (the Phase 0 gate). Here, on Python 3.9: bare
@@ -74,6 +93,9 @@ The kernel's own files (database, cache, lock, log, icons) are not on this list;
   "not set" although Alfred has them, the file lives elsewhere.
 - **`filtermode = 1` means folders** in a `filepicker` setting; unconfirmed. Books uses text areas.
 - **The canvas wires filter → action → notification**, and ⇧↩ / ⌥↩ open and reveal.
+- **`osascript` may ask once for permission** to control Alfred; the picker and ⌃↩ need it.
+- **Phase 2 exit on a real library:** `like` gives sensible neighbours with your embeddings model,
+  tag suggestions are accepted in a batch and undone, and `bk` is as fast as before.
 
 ## Phase 1 status
 

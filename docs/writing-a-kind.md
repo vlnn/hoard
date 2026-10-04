@@ -186,7 +186,38 @@ returned text, which becomes searchable. Update only asks for what is missing, a
 what was made, and a producer that raises is asked again next time. Put slow producers behind
 `lazy`; they run in the background worker.
 
-## 9. Tests
+## 9. Models: `name`, `tag` and `like`
+
+Everything here stays invisible until a model server is set in the workflow configuration;
+every workflow gets the settings `hoard_chat_url`, `hoard_embeddings_url` and
+`hoard_ask_on_update` from hoard. `bk model` lists what each llama-server offers and ↩ picks one.
+Models are only ever called from the background worker, never on a keystroke.
+
+```python
+KIND = Kind(
+    ...,
+    nameable=("authors", "series", "year"),
+    tags=lines_from("tags"),
+)
+```
+
+- **`nameable`** lists the fields the chat model may correct. Its answer comes with a confidence; a
+  confident answer overlays the title and those fields in the index, never the file, and survives
+  re-reads, so `fix` already names files from the corrected metadata. Unsure answers wait in
+  `bk name` under "Accept N".
+- **`tags(ctx)`** returns the allowed tags (Books reads them from a setting). `bk tag` lists untagged
+  rows with the model's guess as `scifi?`; ↩ or ⌘↩ opens a picker; "Accept N suggested" applies the
+  guesses in one batch. A hand tag always wins and drops the model's guess. Tags are searchable.
+- **`like`** defaults to `TextEmbedding()`: the embeddings model reads your `evidence`, trimmed to
+  1 500 characters. `bk like <words>`, `bk like #<id>` or ⌃↩ on any row lists the nearest entities with
+  a percentage. With no words, `like` starts from `last_opened(ctx)` if the kind supplies it, else from
+  the newest entity. Set `like=None` to turn it off.
+
+`evidence(entity)` is what every model sees, so make it the title and fields a person would use to
+recognise the thing, plus a short excerpt. `python3 -m hoard books ask name --dry-run` prints exactly
+what would be sent.
+
+## 10. Tests
 
 `tests/test_conformance.py` is three lines from the template; give it samples:
 

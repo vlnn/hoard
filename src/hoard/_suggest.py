@@ -75,8 +75,8 @@ def picker_rows(con, kind: Kind, ctx: Context, target: str, typed: str) -> tuple
     return (picker_head(con, kind, target),) + tuple(items)
 
 
-def tag_item(con: sqlite3.Connection, kind: Kind, row) -> Item:
-    item = _rows.entity_item(kind, row, verb="pick")
+def tag_item(con: sqlite3.Connection, kind: Kind, ctx: Context, row) -> Item:
+    item = _rows.entity_item(kind, row, verb="pick", ctx=ctx)
     guess = _tags.suggestion(con, item.id)
     return item._replace(subtitle=f"{item.subtitle} · {guess}?") if guess else item
 
@@ -103,4 +103,4 @@ def tag_rows(con, kind: Kind, ctx: Context, words: list) -> tuple:
     if not total:
         return (Head("none", "Nothing to tag"),)
     rows = _fold.fold(con, kind, ctx, _search.search(con, typed, untagged=True))
-    return tuple(tag_heads(con, kind, ctx, words, total)) + tuple(tag_item(con, kind, row) for row in rows)
+    return tuple(tag_heads(con, kind, ctx, words, total)) + tuple(tag_item(con, kind, ctx, row) for row in rows)

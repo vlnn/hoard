@@ -7,9 +7,9 @@ from typing import Any, Callable, Mapping, NamedTuple, Optional, Sequence
 
 NOTHING = MappingProxyType({})
 KERNEL_VERBS = frozenset(
-    {"open", "reveal", "update", "undo", "apply", "use_model", "ask", "accept", "pick", "set_tag", "accept_tags"}
+    {"open", "reveal", "update", "undo", "apply", "use_model", "ask", "accept", "pick", "set_tag", "accept_tags", "like", "embed"}
 )
-KERNEL_COMMANDS = frozenset({"update", "undo", "rnd", "stats", "fix", "model", "name", "tag"})
+KERNEL_COMMANDS = frozenset({"update", "undo", "rnd", "stats", "fix", "model", "name", "tag", "like"})
 STEP_VERBS = frozenset({"move", "trash"})
 COMMAND_VERBS = frozenset({"open", "reveal"})
 LABELS = frozenset({"one", "many"})
@@ -117,6 +117,13 @@ class Plan(NamedTuple):
     steps: tuple = ()
 
 
+class TextEmbedding(NamedTuple):
+    trim: int = 1500
+
+    def text(self, evidence: str) -> str:
+        return evidence[: self.trim]
+
+
 def no_icon(entity: Entity) -> Optional[str]:
     return None
 
@@ -140,6 +147,8 @@ class _KindRecord(NamedTuple):
     derive: Mapping[str, Callable[[Found], Optional[str]]] = NOTHING
     nameable: tuple = ()
     tags: Optional[Callable[[Context], Sequence[str]]] = None
+    like: Optional[TextEmbedding] = TextEmbedding()
+    last_opened: Optional[Callable[[Context], Optional[str]]] = None
 
 
 class Kind(_KindRecord):
@@ -185,6 +194,8 @@ def problems(kind: Kind) -> list:
         (all(callable(producer) for producer in kind.derive.values()), "derived producers should be callable"),
         (set(kind.nameable) <= set(kind.fields), "nameable should name the kind's fields"),
         (kind.tags is None or callable(kind.tags), "tags should be callable with the context, or None"),
+        (kind.like is None or isinstance(kind.like, TextEmbedding), "like should be a TextEmbedding or None"),
+        (kind.last_opened is None or callable(kind.last_opened), "last_opened should be callable or None"),
         (all(isinstance(value, str) for value in kind.labels.values()), "labels should be strings"),
     )
     return [message for passed, message in checks if not passed]

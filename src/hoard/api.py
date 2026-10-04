@@ -75,6 +75,17 @@ def ask(kind: Kind, ctx: Optional[Context] = None, questions: Optional[list] = N
         con.close()
 
 
+def embed(kind: Kind, ctx: Optional[Context] = None) -> int:
+    from hoard import _embed
+
+    ctx = context(kind, ctx)
+    con = open_database(kind, ctx)
+    try:
+        return _embed.run(con, kind, ctx)
+    finally:
+        con.close()
+
+
 def ask_dry_run(kind: Kind, ctx: Optional[Context] = None, questions: Optional[list] = None) -> list:
     from hoard import _ask
 

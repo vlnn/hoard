@@ -34,7 +34,7 @@ def filter_mode(module: str, args: list) -> None:
         print(alfred.render(items))
 
 
-BACKGROUND = {"update": "Updating the index", "ask": "Asking the model"}
+BACKGROUND = {"update": "Updating the index", "ask": "Asking the model", "embed": "Embedding"}
 
 
 def start_job(module: str, job: str) -> str:
@@ -60,13 +60,23 @@ def update_mode(module: str, args: list) -> None:
 TRUE = {"1", "true", "yes", "on"}
 
 
-def ask_quietly(kind, ctx) -> None:
+def quietly(label: str, work) -> None:
     from hoard import api
 
     try:
-        print(f"{api.ask(kind, ctx)} answered", flush=True)
+        print(f"{work()} {label}", flush=True)
     except api.ModelError as error:
-        print(f"ask stopped: {error}", file=sys.stderr, flush=True)
+        print(f"{label}: stopped: {error}", file=sys.stderr, flush=True)
+
+
+def ask_and_embed(kind, ctx) -> None:
+    from hoard import _models, api
+
+    configured = _models.configured(ctx)
+    if "chat" in configured:
+        quietly("answered", lambda: api.ask(kind, ctx))
+    if "embeddings" in configured:
+        quietly("embedded", lambda: api.embed(kind, ctx))
 
 
 def run_job(kind, ctx, job: str) -> None:
@@ -74,14 +84,16 @@ def run_job(kind, ctx, job: str) -> None:
 
     if job == "update":
         print(f"{api.update(kind, ctx)} found", flush=True)
-    if job == "ask" or ctx.setting("hoard_ask_on_update").strip().lower() in TRUE:
-        ask_quietly(kind, ctx)
+    if job == "embed":
+        quietly("embedded", lambda: api.embed(kind, ctx))
+    if job == "ask" or (job == "update" and ctx.setting("hoard_ask_on_update").strip().lower() in TRUE):
+        ask_and_embed(kind, ctx)
 
 
 def worker_mode(module: str, args: list) -> None:
     from hoard import _worker, api
 
-    if args not in (["update"], ["ask"]):
+    if args not in (["update"], ["ask"], ["embed"]):
         usage()
     kind = load_kind(module)
     ctx = api.context(kind)

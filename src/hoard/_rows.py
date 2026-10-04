@@ -2,17 +2,24 @@ from __future__ import annotations
 
 from typing import Optional
 
+from hoard import _models
 from hoard._fold import Row
 from hoard.contract import Context, Found, Kind
 from hoard.items import Head, Item, Mod
 
 SYSTEM_MODS = (Mod("shift", "open", "Open"), Mod("alt", "reveal", "Reveal in Finder"))
 TAG_MOD = Mod("cmd", "pick", "Tag…")
+LIKE_MOD = Mod("ctrl", "like", "More like this")
 
 
-def mods_for(kind: Kind, reachable: bool) -> tuple:
+def likeable(kind: Kind, ctx: Optional[Context]) -> bool:
+    return kind.like is not None and ctx is not None and "embeddings" in _models.configured(ctx)
+
+
+def mods_for(kind: Kind, reachable: bool, ctx: Optional[Context] = None) -> tuple:
     found = SYSTEM_MODS if reachable else ()
-    return found + ((TAG_MOD,) if kind.tags else ())
+    found += (TAG_MOD,) if kind.tags else ()
+    return found + ((LIKE_MOD,) if likeable(kind, ctx) else ())
 
 
 def counted(kind: Kind, count: int) -> str:
@@ -34,7 +41,7 @@ def subtitle(kind: Kind, found: Found) -> str:
     return " · ".join(part for part in parts if part)
 
 
-def entity_item(kind: Kind, row: Row, verb: Optional[str] = None) -> Item:
+def entity_item(kind: Kind, row: Row, verb: Optional[str] = None, ctx: Optional[Context] = None) -> Item:
     found, nearest = row.found, row.found.nearest
     reachable = nearest is not None and nearest.reachable
     return Item(
@@ -44,7 +51,7 @@ def entity_item(kind: Kind, row: Row, verb: Optional[str] = None) -> Item:
         icon=row.icon,
         locator=nearest.locator if nearest else None,
         verb=verb or kind.default_verb(found),
-        mods=mods_for(kind, reachable),
+        mods=mods_for(kind, reachable, ctx),
     )
 
 

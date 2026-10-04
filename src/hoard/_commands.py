@@ -26,7 +26,7 @@ def plural(count: int, one: str, many: str = "") -> str:
 
 
 def items_for(con: sqlite3.Connection, kind: Kind, ctx: Context, entity_rows: list) -> tuple:
-    return tuple(_rows.entity_item(kind, row) for row in _fold.fold(con, kind, ctx, entity_rows))
+    return tuple(_rows.entity_item(kind, row, ctx=ctx) for row in _fold.fold(con, kind, ctx, entity_rows))
 
 
 def update_rows(con, kind, ctx, words) -> tuple:
@@ -125,7 +125,7 @@ def command_rows(con, kind: Kind, ctx: Context, word: str, words: list) -> tuple
     if not total:
         return (Head("none", f"Nothing to {command.label.lower()}"),)
     head = batch_head(kind, " ".join([word, *words]).lower(), command, total)
-    return (head,) + tuple(_rows.entity_item(kind, row, command.verb) for row in shown)
+    return (head,) + tuple(_rows.entity_item(kind, row, command.verb, ctx) for row in shown)
 
 
 def batch_ids(con, kind: Kind, ctx: Context, batch: str) -> list:
@@ -178,6 +178,10 @@ def rows_for(con: sqlite3.Connection, kind: Kind, ctx: Context, typed: str) -> t
         from hoard import _suggest
 
         return _suggest.tag_rows(con, kind, ctx, rest)
+    if word == "like" and _rows.likeable(kind, ctx) and not _search.is_empty(con):
+        from hoard import _like
+
+        return _like.like_rows(con, kind, ctx, rest)
     if _search.is_empty(con):
         return _rows.empty_index_rows(kind, ctx)
     if word in KERNEL_COMMANDS:

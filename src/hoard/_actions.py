@@ -180,6 +180,11 @@ def accept_tags(con, kind: Kind, ctx: Context, ids) -> str:
     return tagged(con, kind, changes, tags.pop() if len(tags) == 1 and len(changes) == 1 else "")
 
 
+def like(kind: Kind, ids) -> str:
+    _requery.reopen(f"{kind.keyword} like #{ids[0]}")
+    return ""
+
+
 def pick(kind: Kind, ids) -> str:
     given = ids[0] if ids else ""
     target = given[len("pick:") :] if given.startswith("pick:") else f"#{given}"
@@ -204,6 +209,8 @@ def dispatch(con: sqlite3.Connection, kind: Kind, ctx: Context, verb: str, ids) 
         return accept_tags(con, kind, ctx, ids)
     if verb == "pick":
         return pick(kind, ids)
+    if verb == "like" and ids:
+        return like(kind, ids)
     if verb in kind.verbs:
         return run_kind_verb(con, kind, ctx, verb, ids)
     return f"No verb {verb}"
