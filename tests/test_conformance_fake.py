@@ -14,6 +14,8 @@ class TestFakeKindConforms(Conformance):
     keystroke_banned = tuple(name for name in suite.KEYSTROKE_BANNED if name != "hoard.testing")
 
     def make_samples(self, storage, root):
+        if storage != "shelf":
+            return
         write_note(root, "dune", "Dune", "Frank Herbert", "1965")
         write_note(root, "nested/ubik", "Ubik", "Philip K. Dick", "1969")
         (root / "cover.jpg").write_bytes(b"\xff\xd8\xff")
@@ -71,3 +73,29 @@ def test_a_verb_with_a_non_callable_undo_fails_conformance():
     with pytest.raises(AssertionError):
         case.test_verbs_declare_undo()
         pytest.fail("a verb whose undo is neither None nor callable should fail")
+
+
+def forgetful_undo(changes, ctx):
+    pass
+
+
+def test_a_verb_whose_undo_leaves_traces_fails_conformance(tmp_path):
+    from hoard.testing.fake import pack
+
+    class Forgetful(Conformance):
+        kind = FakeKind._replace(verbs={"pack": Verb("Pack", pack, forgetful_undo)}, commands={})
+
+        def make_samples(self, storage, root):
+            if storage == "shelf":
+                write_note(root, "dune", "Dune")
+
+    case = Forgetful()
+    roots = {name: tmp_path / name for name in ("shelf", "satchel")}
+    for name, root in roots.items():
+        root.mkdir()
+        case.make_samples(name, root)
+    kind = suite.with_sample_roots(case.kind, roots)
+    ctx = suite.Context(data=str(tmp_path), cache=str(tmp_path))
+    with pytest.raises(AssertionError):
+        case.test_undoable_verbs_undo_to_the_byte(suite.Samples(kind, ctx, (), tuple(roots.values())))
+        pytest.fail("an undo that leaves the copy behind should fail the suite")

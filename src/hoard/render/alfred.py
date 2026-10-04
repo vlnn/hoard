@@ -3,7 +3,11 @@ from __future__ import annotations
 import json
 from functools import singledispatch
 
-from hoard.items import Head, Item, Items
+from hoard.items import Head, Item, Items, Mod
+
+
+def mod_json(item_id: str, mod: Mod) -> dict:
+    return {"arg": item_id, "subtitle": mod.subtitle, "valid": True, "variables": {"verb": mod.verb}}
 
 
 @singledispatch
@@ -26,6 +30,8 @@ def item_json(row: Item) -> dict:
         document["icon"] = {"path": row.icon}
     if row.locator:
         document["quicklookurl"] = row.locator
+    if row.mods:
+        document["mods"] = {mod.key: mod_json(row.id, mod) for mod in row.mods}
     return document
 
 
@@ -34,7 +40,7 @@ def head_json(row: Head) -> dict:
     document = {
         "title": row.title,
         "subtitle": row.subtitle,
-        "arg": f"head:{row.name}",
+        "arg": f"batch:{row.batch}" if row.batch else f"head:{row.name}",
         "valid": row.verb is not None,
     }
     if row.verb is not None:

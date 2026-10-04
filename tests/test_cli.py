@@ -38,7 +38,7 @@ def test_filter_prints_script_filter_json(alfred, capsys):
 
 def test_filter_text_prints_lines(alfred, dune, capsys):
     run(capsys, "update")
-    assert run(capsys, "filter", "--text", "dune").splitlines()[0].startswith("Dune | Frank Herbert"), (
+    assert run(capsys, "filter", "--text", "dune").splitlines()[0].startswith("Dune | shelf · Frank Herbert"), (
         "--text should print the plain-text rendering"
     )
 

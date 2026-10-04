@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import os
+import shutil
 from typing import Optional
 
-from hoard.contract import Entity, Kind, Storage, roots_from
+from hoard.contract import Change, Command, Entity, Kind, Storage, Verb, roots_from
 
 SUFFIX = ".note"
 
@@ -55,6 +56,37 @@ def evidence(entity: Entity) -> str:
     return "\n".join((entity.title, *entity.fields[:2], entity.text))
 
 
+def packing_target(found, satchel_root: str) -> Optional[tuple]:
+    source = found.locator_in("shelf")
+    if found.on("satchel") or source is None:
+        return None
+    target = os.path.join(satchel_root, os.path.basename(source))
+    return None if os.path.exists(target) else (source, target)
+
+
+def pack(founds, ctx) -> list:
+    roots = ctx.roots_of("satchel")
+    if not roots:
+        return []
+    changes = []
+    for found in founds:
+        paths = packing_target(found, roots[0])
+        if paths:
+            os.makedirs(roots[0], exist_ok=True)
+            shutil.copyfile(*paths)
+            changes.append(Change(found.entity.id, "copy", *paths))
+    return changes
+
+
+def unpack(changes, ctx) -> None:
+    for change in changes:
+        os.remove(change.after)
+
+
+def toss(founds, ctx) -> list:
+    return [Change(found.entity.id, "toss", None, None) for found in founds]
+
+
 KIND = Kind(
     name="fake",
     keyword="fk",
@@ -64,4 +96,6 @@ KIND = Kind(
     ),
     fields=("author", "year", "path"),
     evidence=evidence,
+    verbs={"pack": Verb("Pack into the satchel", pack, unpack), "toss": Verb("Toss", toss)},
+    commands={"loose": Command("Pack", "pack", off=("satchel",))},
 )

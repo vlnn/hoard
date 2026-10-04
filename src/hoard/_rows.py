@@ -1,24 +1,63 @@
 from __future__ import annotations
 
-import json
+from typing import Optional
 
-from hoard.contract import Entity, Kind
-from hoard.items import Head, Item
+from hoard._fold import Row
+from hoard.contract import Context, Found, Kind
+from hoard.items import Head, Item, Mod
+
+SYSTEM_MODS = (Mod("shift", "open", "Open"), Mod("alt", "reveal", "Reveal in Finder"))
 
 
-def subtitle(fields) -> str:
-    return " · ".join(value for value in fields if value)
+def places(found: Found) -> str:
+    nearest = found.nearest
+    if nearest is None:
+        return ""
+    others = "".join(f" +{storage}" for storage in found.storages if storage != nearest.storage)
+    return nearest.storage + others + ("" if nearest.reachable else " (not reachable)")
 
 
-def entity_item(kind: Kind, row: tuple) -> Item:
-    entity_id, title, fields_json, icon, locator = row
-    fields = tuple(json.loads(fields_json))
-    verb = kind.default_verb(Entity(entity_id, title, fields))
-    return Item(entity_id, title, subtitle(fields), icon, locator, verb)
+def subtitle(kind: Kind, found: Found) -> str:
+    parts = [places(found)] if len(kind.storages) > 1 else []
+    parts += [value for value in found.entity.fields if value]
+    return " · ".join(part for part in parts if part)
+
+
+def entity_item(kind: Kind, row: Row, verb: Optional[str] = None) -> Item:
+    found, nearest = row.found, row.found.nearest
+    reachable = nearest is not None and nearest.reachable
+    return Item(
+        id=found.entity.id,
+        title=found.entity.title,
+        subtitle=subtitle(kind, found),
+        icon=row.icon,
+        locator=nearest.locator if nearest else None,
+        verb=verb or kind.default_verb(found),
+        mods=SYSTEM_MODS if reachable else (),
+    )
+
+
+def missing_folders(kind: Kind, ctx: Context) -> tuple:
+    heads = []
+    for storage in kind.storages:
+        roots = ctx.roots_of(storage.name)
+        if not roots:
+            setting = getattr(storage.roots, "setting", "its folder")
+            heads.append(Head(f"setup:{storage.name}", f"No folder set for {storage.name}", f"set {setting} in the workflow configuration"))
+        heads += [
+            Head(f"unreachable:{storage.name}", f"Not reachable: {root}", f"{storage.name} · is the drive connected?")
+            for root in roots
+            if not storage.mounted(root)
+        ]
+    return tuple(heads)
 
 
 def index_empty() -> Head:
     return Head("update", "Index is empty", "↩ to update the index", verb="update")
+
+
+def empty_index_rows(kind: Kind, ctx: Context) -> tuple:
+    return missing_folders(kind, ctx) + (index_empty(),)
 
 
 def update_offer() -> Head:

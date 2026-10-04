@@ -8,7 +8,8 @@ from hoard.items import Items
 
 
 def context(kind: Kind, ctx: Optional[Context] = None) -> Context:
-    return ctx or _context.from_environ(kind)
+    ctx = ctx or _context.from_environ(kind)
+    return ctx._replace(roots={storage.name: tuple(storage.roots(ctx)) for storage in kind.storages})
 
 
 def open_database(kind: Kind, ctx: Context):
@@ -19,7 +20,7 @@ def filter(kind: Kind, typed: str, ctx: Optional[Context] = None) -> Items:
     ctx = context(kind, ctx)
     con = open_database(kind, ctx)
     try:
-        rows = _commands.rows_for(con, kind, typed)
+        rows = _commands.rows_for(con, kind, ctx, typed)
         if not _worker.running(ctx):
             return Items(rows)
         return Items((_rows.updating(_commands.found_so_far(con)),) + rows, rerun=1)
@@ -44,14 +45,12 @@ def update(
 
 
 def act(kind: Kind, verb: str, ids, ctx: Optional[Context] = None) -> str:
-    from hoard import _system
+    from hoard import _actions
 
-    if verb not in _system.SYSTEM_VERBS:
-        return f"No verb {verb}"
     ctx = context(kind, ctx)
     con = open_database(kind, ctx)
     try:
-        return _system.hand_over(con, verb, ids)
+        return _actions.dispatch(con, kind, ctx, verb, ids)
     finally:
         con.close()
 

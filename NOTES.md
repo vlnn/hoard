@@ -7,14 +7,14 @@ and what still has to be checked on the Mac.
 
 1. `_index.walk` reads folders only. Every `Storage` is a set of folder roots; an API storage
    (Spotify, Phase 4) needs a second walker behind the same `update_storage`.
-2. `Sighting.locator` is always a path, and `_system` hands it to macOS `open` / `open -R`.
+2. `Sighting.locator` is always a path, and `_system` hands it to macOS `open` / `open -R`;
+   a sighting with no locator counts as reachable, which Phase 4 has to revisit.
 3. `entities.mtime` is the newest sighting's file mtime; Phase 4 turns it into a kind-supplied sort key.
 4. `Kind.icon` returns a bundle-relative path (`icons/epub.png`); covers arrive as bytes on
    `Entity.cover` and are cached as files.
 5. `sightings` is keyed `(id, storage)`, so two byte-identical files in one storage keep one
    sighting and the other is re-read on every update until `lint` removes duplicates (Slice C).
-6. The row's locator is the newest sighting, not the first storage in the kind's order (Slice B fold).
-7. `hoard.testing` ships `make_epub` and `make_fb2`, as the plan asks; `make_mp3`/`make_flac` join them in Phase 3.
+6. `hoard.testing` ships `make_epub` and `make_fb2`, as the plan asks; `make_mp3`/`make_flac` join them in Phase 3.
 
 ## Departures from the plan
 
@@ -37,6 +37,34 @@ and what still has to be checked on the Mac.
 - **Pulled forward from Slice B:** `update` already runs through the detached worker with the
   lock-and-rerun progress row, and `open`/`reveal` are kernel verbs.
 
+## Slice B: what hoard hands to kinds
+
+hoard interprets nothing about a kind's places or verbs; it hands over everything it knows and
+lets the kind decide.
+
+- **`Found(entity, sightings)`** is what verbs, `default_verb` and `Command.keep` receive.
+  Sightings come in the kind's storage order and each says whether it is `reachable` now;
+  `found.nearest`, `found.on(storage)` and `found.locator_in(storage)` are conveniences over that.
+- **`Context.roots`** carries every storage's roots, so a verb can find where to write without
+  knowing how the kind configures its folders.
+- **Fold order is the kind's storage order.** A row shows the first reachable copy in that order;
+  Books lists `device` before `library`, and another kind can choose the opposite.
+- **`Command(label, verb, keep=everything, on=(), off=())`** replaces the plan's
+  `Command(label, rows, verb, heads)`. The kernel lists rows and adds the batch row; `on`/`off`
+  name storages and are answered in SQL, `keep(found)` is the escape hatch evaluated in Python
+  over every match (≈200 ms at 10 000 entities, so prefer `on`/`off`).
+- **Batch rows carry the query** (`arg = "batch:loose dune"`), not thousands of ids; `act`
+  re-runs the command to expand it.
+- **Kernel names:** verbs `open`, `reveal`, `update`, `undo` and commands `update`, `undo`, `rnd`,
+  `stats` are reserved; `Kind` refuses to build if a kind reuses them.
+- **Journal:** schema v2 adds `journal.kind_of_change`. `act` records one batch per verb run that
+  changed something, re-indexes synchronously, and `undo` reverses the newest batch whose verb
+  is undoable, skipping batches that cannot be undone.
+- **Conformance** now runs every undoable verb over the samples and undoes it, comparing every
+  byte, and lists every command through the text renderer.
+- **`make doctor`** links the workflow and runs doctor there; doctor fills Alfred's folders from
+  `info.plist` and the settings from `prefs.plist`, so no environment variables are needed.
+
 ## To verify on the Mac
 
 - **Keystroke budget in Alfred's debugger.** Measured here on Python 3.9 (stand-in for
@@ -48,6 +76,9 @@ and what still has to be checked on the Mac.
   to mean folders; not confirmed. Books uses `type = "lines"` (a textarea) for its library roots.
 - **Script filter, action and notification objects** in `info.plist` are written from the
   Alfred 5 format; import the bundle once and check the canvas wires filter → action → notification.
+- **Alfred keeps user configuration in the workflow's `prefs.plist`.** `make doctor` relies on it;
+  if your storage lines say "no folder configured", the file lives elsewhere and doctor needs the path.
+- **⇧↩ and ⌥↩ modifiers** come from the script filter's `mods`; check they open and reveal.
 - **`act open` on a missing `open` command** raises; fine on macOS, worth a friendly line if it ever matters.
 
 ## Slice A status
@@ -63,3 +94,15 @@ and what still has to be checked on the Mac.
 | entity, storage, db v1, index diff on (locator, mtime, size) | done |
 | search: prefix words, diacritics, newest first, 40 rows | done |
 | Books readers: epub, fb2, fingerprint, covers, format icons | done |
+
+## Slice B status
+
+| Item | State |
+| --- | --- |
+| fold: one row per id, first reachable storage in kind order, places in the subtitle | done |
+| mounted state per storage: "Not reachable", "No folder set" rows on an empty index | done |
+| ⇧↩ open, ⌥↩ reveal; ⌘Y, ⌘C, ⌘L via quicklook and text | done |
+| `rnd`, `stats`, `update` through the worker | done |
+| journal: batches, `undo` row and verb, undoable honoured | done |
+| kind verbs and commands with batch rows | done, over `Found` and `on`/`off` |
+| Books: device storage and one undoable verb, `copy_in` | done; the rest of the reading loop is the kind's business, not hoard's |

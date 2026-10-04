@@ -67,8 +67,11 @@ def worker_mode(module: str, args: list) -> None:
 
 
 def doctor_mode(module: str, args: list) -> None:
-    from hoard import api
+    import os
 
+    from hoard import _alfred, api
+
+    _alfred.fill_from_workflow(os.getcwd(), os.environ)
     report = api.doctor(load_kind(module))
     print("\n".join(report.lines()))
     sys.exit(0 if report.ok else 1)

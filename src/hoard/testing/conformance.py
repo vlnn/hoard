@@ -12,6 +12,7 @@ import pytest
 
 from hoard import api
 from hoard.contract import Context, Entity, Kind, Storage
+from hoard.items import Item
 from hoard.render import text
 
 KEYSTROKE_BANNED = ("zipfile", "urllib", "xml", "http", "pytest", "hoard.testing", "hoard.build")
@@ -46,6 +47,20 @@ class Samples:
     kind: Kind
     ctx: Context
     entities: tuple
+    roots: tuple = ()
+
+
+def snapshot(roots) -> dict:
+    return {
+        (str(root), str(path.relative_to(root))): path.read_bytes()
+        for root in roots
+        for path in sorted(Path(root).rglob("*"))
+        if path.is_file()
+    }
+
+
+def listed_ids(kind: Kind, ctx: Context) -> list:
+    return [row.id for row in api.filter(kind, "", ctx).rows if isinstance(row, Item)]
 
 
 def module_defining(kind: Kind) -> str:
@@ -109,7 +124,7 @@ class Conformance:
         ctx = Context(data=str(tmp_path / "data"), cache=str(tmp_path / "cache"))
         os.makedirs(ctx.data)
         os.makedirs(ctx.cache)
-        return Samples(kind, ctx, entities)
+        return Samples(kind, ctx, entities, tuple(roots.values()))
 
     def test_kind_is_a_kind(self):
         assert isinstance(self.kind, Kind), "KIND should be a hoard.contract.Kind"
@@ -144,6 +159,23 @@ class Conformance:
         expected = min(distinct, 40) if distinct else 1
         assert len(lines) == expected, "an empty query should list every sample, or say the index is empty"
         assert all(isinstance(line, str) for line in lines), "every row should render as a line"
+
+    def test_every_command_lists_through_the_text_renderer(self, samples):
+        api.update(samples.kind, samples.ctx)
+        for word in self.kind.commands:
+            lines = text.render(api.filter(samples.kind, word, samples.ctx))
+            assert lines and all(isinstance(line, str) for line in lines), f"{word} should list through the renderer"
+
+    def test_undoable_verbs_undo_to_the_byte(self, samples):
+        api.update(samples.kind, samples.ctx)
+        ids = listed_ids(samples.kind, samples.ctx)
+        for name, verb in self.kind.verbs.items():
+            if not verb.undoable:
+                continue
+            before = snapshot(samples.roots)
+            api.act(samples.kind, name, ids, samples.ctx)
+            api.act(samples.kind, "undo", [], samples.ctx)
+            assert snapshot(samples.roots) == before, f"{name} then undo should leave every sample byte-identical"
 
     def test_verbs_declare_undo(self):
         for name, verb in self.kind.verbs.items():

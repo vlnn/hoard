@@ -1,6 +1,6 @@
 SYSTEM_PYTHON ?= /usr/bin/python3
 
-.PHONY: test test-system build check link
+.PHONY: test test-system build check link doctor
 
 test:
 	uv run pytest
@@ -16,3 +16,6 @@ check:
 
 link:
 	uv run python -m hoard.build --link
+
+doctor:
+	cd "$$(uv run python -m hoard.build --link)" && $(SYSTEM_PYTHON) hoard.py doctor

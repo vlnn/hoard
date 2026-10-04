@@ -36,7 +36,7 @@ def warm_seconds(ctx, typed: str) -> float:
     return time.perf_counter() - started
 
 
-@pytest.mark.parametrize("typed", ["", "a", "amber", "amber cedar", "author 5", "zzz"])
+@pytest.mark.parametrize("typed", ["", "a", "amber", "amber cedar", "author 5", "zzz", "loose", "loose amber", "stats", "rnd"])
 def test_filter_answers_within_the_warm_budget(large_library, typed):
     elapsed = warm_seconds(large_library, typed)
     assert elapsed < WARM_BUDGET, f"{typed!r} over {ENTITIES} entities should answer under 50 ms warm, took {elapsed * 1000:.1f} ms"

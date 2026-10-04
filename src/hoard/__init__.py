@@ -4,6 +4,7 @@ from hoard.contract import (
     Context,
     ContractError,
     Entity,
+    Found,
     Kind,
     Plan,
     Sighting,
@@ -14,7 +15,7 @@ from hoard.contract import (
     roots_from,
 )
 
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 
 __all__ = [
     "Change",
@@ -22,6 +23,7 @@ __all__ = [
     "Context",
     "ContractError",
     "Entity",
+    "Found",
     "Kind",
     "Plan",
     "Sighting",

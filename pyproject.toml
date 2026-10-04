@@ -1,6 +1,6 @@
 [project]
 name = "hoard"
-version = "0.0.1"
+version = "0.0.2"
 description = "A library for building Alfred workflows over collections of things: one kind per repository, one kernel shared by all."
 readme = "README.md"
 authors = [{ name = "Volodymyr Anokhin" }]

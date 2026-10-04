@@ -3,6 +3,12 @@ from __future__ import annotations
 from typing import NamedTuple, Optional
 
 
+class Mod(NamedTuple):
+    key: str
+    verb: str
+    subtitle: str
+
+
 class Item(NamedTuple):
     id: str
     title: str
@@ -10,6 +16,7 @@ class Item(NamedTuple):
     icon: Optional[str] = None
     locator: Optional[str] = None
     verb: str = "open"
+    mods: tuple = ()
 
 
 class Head(NamedTuple):
@@ -17,6 +24,7 @@ class Head(NamedTuple):
     title: str
     subtitle: str = ""
     verb: Optional[str] = None
+    batch: str = ""
 
 
 class Items(NamedTuple):

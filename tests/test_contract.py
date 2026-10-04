@@ -4,10 +4,13 @@ import pytest
 
 from hoard.contract import (
     Change,
+    Command,
     Context,
     ContractError,
     Entity,
+    Found,
     Kind,
+    Sighting,
     Storage,
     Verb,
     lazy,
@@ -35,11 +38,22 @@ def a_kind(**overrides):
     return Kind(**parts)
 
 
+def nothing_changes(founds, ctx):
+    return []
+
+
+def found(*storages, reachable=()):
+    sightings = tuple(
+        Sighting("x", name, f"/{name}/x", 1.0, 1, reachable=name in reachable) for name in storages
+    )
+    return Found(Entity("x", "X"), sightings)
+
+
 def test_a_kind_needs_only_storages_fields_and_evidence():
     kind = a_kind()
     assert kind.verbs == {}, "a kind without verbs should get an empty verb map"
     assert kind.commands == {}, "a kind without commands should get an empty command map"
-    assert kind.default_verb(Entity("x", "X")) == "open", "the default verb should be open"
+    assert kind.default_verb(found("library")) == "open", "the default verb should be open"
     assert kind.icon(Entity("x", "X")) is None, "a kind without icons should draw none"
 
 
@@ -57,7 +71,14 @@ def test_a_kind_needs_only_storages_fields_and_evidence():
             "storage names should be unique",
         ),
         ({"evidence": "title"}, "evidence should be callable"),
-        ({"verbs": {"open": "not a verb"}}, "verbs should be Verb records"),
+        ({"verbs": {"pack": "not a verb"}}, "verbs should be Verb records"),
+        ({"verbs": {"open": Verb("Open", nothing_changes)}}, "open belongs to the kernel"),
+        ({"verbs": {"undo": Verb("Undo", nothing_changes)}}, "undo belongs to the kernel"),
+        ({"commands": {"stats": Command("Stats", "open")}}, "stats belongs to the kernel"),
+        ({"commands": {"loose": Command("Pack", "pack")}}, "a command should name a verb that exists"),
+        ({"commands": {"Loose": Command("Open", "open")}}, "a command word should be one lowercase word"),
+        ({"commands": {"loose": Command("Open", "open", on=("device",))}}, "on should name the kind's storages"),
+        ({"commands": {"loose": Command("Open", "open", off=("device",))}}, "off should name the kind's storages"),
     ],
 )
 def test_a_malformed_kind_fails_when_built(overrides, reason):
@@ -97,3 +118,42 @@ def test_verb_without_undo_is_not_undoable():
 def test_change_is_a_plain_value():
     change = Change("id1", "move", "/a", "/b")
     assert change == Change("id1", "move", "/a", "/b"), "changes should compare by value"
+
+
+@pytest.mark.parametrize("verb", ["open", "reveal"])
+def test_commands_may_use_kernel_verbs(verb):
+    kind = a_kind(commands={"all": Command("Open", verb)})
+    assert kind.commands["all"].verb == verb, "open and reveal are available to every command"
+
+
+def test_commands_keep_everything_by_default():
+    assert Command("Open", "open").keep(found("library")), "a command without a filter should keep every row"
+
+
+@pytest.mark.parametrize(
+    "storages, reachable, nearest",
+    [
+        (("device", "library"), ("device", "library"), "device"),
+        (("device", "library"), ("library",), "library"),
+        (("device", "library"), (), "device"),
+        (("library",), ("library",), "library"),
+    ],
+)
+def test_nearest_is_the_first_reachable_sighting_in_kind_order(storages, reachable, nearest):
+    assert found(*storages, reachable=reachable).nearest.storage == nearest, (
+        "the nearest copy should be the first reachable one, else the first one"
+    )
+
+
+def test_found_answers_where_an_entity_is():
+    sighted = found("device", "library", reachable=("library",))
+    assert sighted.storages == ("device", "library"), "storages should list every place, in kind order"
+    assert sighted.on("device") and not sighted.on("satchel"), "on() should say whether a storage holds it"
+    assert sighted.locator_in("library") == "/library/x", "locator_in() should give that storage's copy"
+    assert sighted.locator_in("satchel") is None, "a storage without a copy has no locator"
+
+
+def test_context_carries_the_roots_of_every_storage():
+    ctx = Context(data="/d", cache="/c", roots={"device": ("/Volumes/KOBO",)})
+    assert ctx.roots_of("device") == ("/Volumes/KOBO",), "verbs should find storage roots in the context"
+    assert ctx.roots_of("satchel") == (), "an unknown storage has no roots"

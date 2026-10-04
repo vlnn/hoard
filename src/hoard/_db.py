@@ -77,7 +77,9 @@ CREATE TABLE journal(
 CREATE TABLE exchanges(at REAL, kind_of TEXT, request TEXT, response TEXT);
 """
 
-MIGRATIONS = (SCHEMA_V1,)
+JOURNAL_KIND_OF_CHANGE = "ALTER TABLE journal ADD COLUMN kind_of_change TEXT;"
+
+MIGRATIONS = (SCHEMA_V1, JOURNAL_KIND_OF_CHANGE)
 
 CACHE_TABLES = frozenset({"entities", "sightings", "fts", "derived", "storage_state"})
 STORE_TABLES = frozenset({"tags", "answers", "vectors", "neighbours", "journal", "exchanges"})

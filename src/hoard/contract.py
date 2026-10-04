@@ -6,6 +6,9 @@ from types import MappingProxyType
 from typing import Any, Callable, Mapping, NamedTuple, Optional, Sequence
 
 NOTHING = MappingProxyType({})
+KERNEL_VERBS = frozenset({"open", "reveal", "update", "undo"})
+KERNEL_COMMANDS = frozenset({"update", "undo", "rnd", "stats"})
+COMMAND_VERBS = frozenset({"open", "reveal"})
 
 
 class ContractError(ValueError):
@@ -26,6 +29,26 @@ class Sighting(NamedTuple):
     locator: Optional[str]
     mtime: float
     size: int
+    reachable: bool = True
+
+
+class Found(NamedTuple):
+    entity: Entity
+    sightings: tuple
+
+    @property
+    def storages(self) -> tuple:
+        return tuple(sighting.storage for sighting in self.sightings)
+
+    @property
+    def nearest(self) -> Optional[Sighting]:
+        return next((s for s in self.sightings if s.reachable), self.sightings[0] if self.sightings else None)
+
+    def on(self, storage: str) -> bool:
+        return storage in self.storages
+
+    def locator_in(self, storage: str) -> Optional[str]:
+        return next((s.locator for s in self.sightings if s.storage == storage), None)
 
 
 class Context(NamedTuple):
@@ -33,9 +56,13 @@ class Context(NamedTuple):
     cache: str
     config: Mapping[str, str] = NOTHING
     journal: Optional[Callable[..., Any]] = None
+    roots: Mapping[str, tuple] = NOTHING
 
     def setting(self, name: str, default: str = "") -> str:
         return self.config.get(name, default)
+
+    def roots_of(self, storage: str) -> tuple:
+        return tuple(self.roots.get(storage, ()))
 
 
 class Storage(NamedTuple):
@@ -54,7 +81,7 @@ class Change(NamedTuple):
 
 class Verb(NamedTuple):
     label: str
-    run: Callable[[Sequence[str], Context], Sequence[Change]]
+    run: Callable[[Sequence[Found], Context], Sequence[Change]]
     undo: Optional[Callable[[Sequence[Change], Context], None]] = None
 
     @property
@@ -62,11 +89,16 @@ class Verb(NamedTuple):
         return self.undo is not None
 
 
+def everything(found: Found) -> bool:
+    return True
+
+
 class Command(NamedTuple):
     label: str
-    rows: Callable[[Sequence[str], Context], Sequence[Any]]
     verb: str
-    heads: Optional[Callable[[Sequence[str], Context], Sequence[Any]]] = None
+    keep: Callable[[Found], bool] = everything
+    on: tuple = ()
+    off: tuple = ()
 
 
 class Step(NamedTuple):
@@ -85,7 +117,7 @@ def no_icon(entity: Entity) -> Optional[str]:
     return None
 
 
-def always_open(entity: Entity) -> str:
+def always_open(found: Found) -> str:
     return "open"
 
 
@@ -96,7 +128,7 @@ class _KindRecord(NamedTuple):
     fields: tuple
     evidence: Callable[[Entity], str]
     icon: Callable[[Entity], Optional[str]] = no_icon
-    default_verb: Callable[[Entity], str] = always_open
+    default_verb: Callable[[Found], str] = always_open
     verbs: Mapping[str, Verb] = NOTHING
     commands: Mapping[str, Command] = NOTHING
     labels: Mapping[str, str] = NOTHING
@@ -110,6 +142,14 @@ class Kind(_KindRecord):
         for problem in problems(kind):
             raise ContractError(f"{kind.name or 'kind'}: {problem}")
         return kind
+
+
+def storage_names(kind: Kind) -> set:
+    return {storage.name for storage in kind.storages if isinstance(storage, Storage)}
+
+
+def commands(kind: Kind) -> list:
+    return [c for c in kind.commands.values() if isinstance(c, Command)]
 
 
 def problems(kind: Kind) -> list:
@@ -126,6 +166,11 @@ def problems(kind: Kind) -> list:
         (callable(kind.default_verb), "default_verb should be callable"),
         (all(isinstance(v, Verb) for v in kind.verbs.values()), "verbs should be Verb records"),
         (all(isinstance(c, Command) for c in kind.commands.values()), "commands should be Command records"),
+        (not KERNEL_VERBS & set(kind.verbs), f"verb names {sorted(KERNEL_VERBS)} belong to the kernel"),
+        (not KERNEL_COMMANDS & set(kind.commands), f"command words {sorted(KERNEL_COMMANDS)} belong to the kernel"),
+        (all(w.isalpha() and w.islower() for w in kind.commands), "command words should be single lowercase words"),
+        (all(c.verb in COMMAND_VERBS or c.verb in kind.verbs for c in commands(kind)), "commands should name a known verb"),
+        (all(set(c.on) | set(c.off) <= storage_names(kind) for c in commands(kind)), "on and off should name storages"),
     )
     return [message for passed, message in checks if not passed]
 

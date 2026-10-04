@@ -115,4 +115,4 @@ def test_filter_mode_loads_only_the_keystroke_path(tmp_path):
     loaded = json.loads(finished.stderr.strip().splitlines()[-1])
     banned = sorted(m for m in loaded if any(m == b or m.startswith(b + ".") for b in FILTER_BANNED))
     assert banned == [], "a keystroke should load SQLite and the renderer only"
-    assert json.loads(finished.stdout)["items"][0]["title"] == "Index is empty", "the lean kind should still answer"
+    assert json.loads(finished.stdout)["items"][-1]["title"] == "Index is empty", "the lean kind should still answer"

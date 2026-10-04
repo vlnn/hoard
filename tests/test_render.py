@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from hoard.items import Head, Item, Items
+from hoard.items import Head, Item, Items, Mod
 from hoard.render import alfred, text
 
 
@@ -29,10 +29,19 @@ def test_text_keeps_row_order():
 def test_alfred_document_carries_every_key():
     items = Items(
         (
-            Item("id1", "Dune", "Frank", icon="/c/id1.jpg", locator="/b/Dune.note", verb="open"),
+            Item(
+                "id1",
+                "Dune",
+                "Frank",
+                icon="/c/id1.jpg",
+                locator="/b/Dune.note",
+                verb="pack",
+                mods=(Mod("shift", "open", "Open"), Mod("alt", "reveal", "Reveal in Finder")),
+            ),
             Item("id2", "Bare"),
             Head("update", "Index is empty", "↩", verb="update"),
             Head("none", "No match"),
+            Head("loose", "Pack all 2", "↩ on every row below", verb="pack", batch="loose dune"),
         ),
         rerun=1,
     )
@@ -48,7 +57,11 @@ def test_alfred_document_carries_every_key():
                 "valid": True,
                 "icon": {"path": "/c/id1.jpg"},
                 "quicklookurl": "/b/Dune.note",
-                "variables": {"verb": "open"},
+                "variables": {"verb": "pack"},
+                "mods": {
+                    "shift": {"arg": "id1", "subtitle": "Open", "valid": True, "variables": {"verb": "open"}},
+                    "alt": {"arg": "id1", "subtitle": "Reveal in Finder", "valid": True, "variables": {"verb": "reveal"}},
+                },
                 "text": {"copy": "/b/Dune.note", "largetype": "Dune"},
             },
             {
@@ -68,6 +81,13 @@ def test_alfred_document_carries_every_key():
                 "variables": {"verb": "update"},
             },
             {"title": "No match", "subtitle": "", "arg": "head:none", "valid": False},
+            {
+                "title": "Pack all 2",
+                "subtitle": "↩ on every row below",
+                "arg": "batch:loose dune",
+                "valid": True,
+                "variables": {"verb": "pack"},
+            },
         ],
     }
     assert json.loads(alfred.render(items)) == expected, "the Alfred document should match the script-filter schema"

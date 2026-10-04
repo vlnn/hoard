@@ -23,7 +23,7 @@ def library(ctx, shelf):
 
 
 def row(title, author, year, name, shelf):
-    return f"{title} | {author} · {year} · {shelf}/{name}.note"
+    return f"{title} | shelf · {author} · {year} · {shelf}/{name}.note"
 
 
 def test_an_empty_index_offers_to_update(ctx):

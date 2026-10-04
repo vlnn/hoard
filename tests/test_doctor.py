@@ -10,8 +10,7 @@ def statuses(report):
     return {check.name: check.status for check in report.checks}
 
 
-def test_doctor_passes_on_this_machine(ctx, shelf):
-    shelf.mkdir()
+def test_doctor_passes_on_this_machine(ctx):
     report = api.doctor(FakeKind, ctx)
     assert report.ok, f"doctor should pass where FTS5 exists: {report.lines()}"
     assert statuses(report)["fts5"] == "ok", "FTS5 should be found"
@@ -31,8 +30,8 @@ def test_doctor_grades_missing_sqlite_features(ctx, mocker, missing, check, stat
     assert report.ok is ok, f"a missing {check} should {'not ' if ok else ''}fail doctor"
 
 
-def test_doctor_reports_each_storage_root(ctx, shelf):
-    shelf.mkdir()
+def test_doctor_reports_each_storage_root(ctx, satchel):
+    satchel.rmdir()
     report = statuses(api.doctor(FakeKind, ctx))
     assert report["storage shelf"] == "ok", "a mounted root should be fine"
     assert report["storage satchel"] == "warn", "an unmounted root should be a warning, not a failure"

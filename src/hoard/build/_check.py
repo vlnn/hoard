@@ -20,14 +20,14 @@ def bundle_environment(scratch: Path) -> dict:
     return environ
 
 
-def first_title(output: str) -> str:
+def titles(output: str) -> list:
     try:
-        return json.loads(output)["items"][0]["title"]
-    except (ValueError, KeyError, IndexError) as error:
+        return [item["title"] for item in json.loads(output)["items"]]
+    except (ValueError, KeyError, TypeError) as error:
         raise BuildError(f"the filter printed no rows: {output!r}") from error
 
 
-def answer_empty_query(workflow_folder: Path, scratch: Path) -> str:
+def answer_empty_query(workflow_folder: Path, scratch: Path) -> list:
     finished = subprocess.run(
         [sys.executable, "-I", "hoard.py", "filter", ""],
         cwd=workflow_folder,
@@ -37,7 +37,7 @@ def answer_empty_query(workflow_folder: Path, scratch: Path) -> str:
     )
     if finished.returncode != 0:
         raise BuildError(f"the bundle's filter failed:\n{finished.stderr}")
-    return first_title(finished.stdout)
+    return titles(finished.stdout)
 
 
 def check(repo=".") -> str:
@@ -46,7 +46,7 @@ def check(repo=".") -> str:
         workflow_folder = Path(scratch) / "workflow"
         with zipfile.ZipFile(archive_path) as archive:
             archive.extractall(workflow_folder)
-        title = answer_empty_query(workflow_folder, Path(scratch))
-    if title != EXPECTED:
-        raise BuildError(f"an empty database should answer {EXPECTED!r}, got {title!r}")
-    return f"ok: {title}"
+        answered = answer_empty_query(workflow_folder, Path(scratch))
+    if EXPECTED not in answered:
+        raise BuildError(f"an empty database should answer {EXPECTED!r}, got {answered!r}")
+    return f"ok: {EXPECTED}"

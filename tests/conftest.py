@@ -26,4 +26,6 @@ def satchel(tmp_path):
 
 @pytest.fixture
 def ctx(context_with, shelf, satchel):
+    shelf.mkdir()
+    satchel.mkdir()
     return context_with(fake_shelf=str(shelf), fake_satchel=str(satchel))

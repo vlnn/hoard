@@ -51,6 +51,7 @@ def test_template_writes_the_kind_repository_layout(generated):
         ("tests/test_conformance.py", "from shelf import KIND"),
         ("Makefile", "\tuv run pytest"),
         ("Makefile", "$(SYSTEM_PYTHON)"),
+        ("Makefile", "$(SYSTEM_PYTHON) hoard.py doctor"),
     ],
 )
 def test_template_fills_in_the_kind(generated, relative, fragment):

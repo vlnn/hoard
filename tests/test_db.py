@@ -42,3 +42,21 @@ def test_drop_cache_keeps_store_tables(tmp_db):
     _db.drop_cache(tmp_db)
     assert tmp_db.execute("SELECT count(*) FROM entities").fetchone() == (0,), "cache tables should be emptied"
     assert tmp_db.execute("SELECT count(*) FROM tags").fetchone() == (1,), "store tables should survive"
+
+
+def test_a_version_one_database_migrates_and_keeps_its_journal(tmp_path):
+    import sqlite3
+
+    path = str(tmp_path / "old.sqlite")
+    old = sqlite3.connect(path)
+    old.executescript(_db.SCHEMA_V1)
+    old.execute("INSERT INTO meta VALUES ('schema_version', '1')")
+    old.execute("INSERT INTO journal(batch, seq, verb, id) VALUES (1, 0, 'pack', 'id1')")
+    old.commit()
+    old.close()
+    con = _db.connect(path)
+    assert _db.schema_version(con) == 2, "an old database should be migrated on connect"
+    assert con.execute("SELECT verb, kind_of_change FROM journal").fetchall() == [("pack", None)], (
+        "migration should keep the journal and add the new column empty"
+    )
+    con.close()

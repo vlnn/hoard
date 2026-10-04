@@ -151,3 +151,12 @@ def test_link_twice_replaces_the_previous_link(repo, tmp_path):
     build.link(repo, tmp_path / "workflows")
     installed = build.link(repo, tmp_path / "workflows")
     assert (installed / "hoard.py").is_file(), "relinking should leave a working workflow"
+
+
+def test_check_passes_for_a_kind_whose_folders_are_not_set_yet(repo):
+    (repo / "shelf" / "__init__.py").write_text(
+        "from hoard.contract import Kind, Storage, roots_from\n"
+        "KIND = Kind(name='shelf', keyword='sh', fields=('path',), evidence=str,\n"
+        "            storages=(Storage('shelf', roots_from('shelf'), str),))\n"
+    )
+    assert build.check(repo) == "ok: Index is empty", "rows explaining missing folders should not fail the check"
