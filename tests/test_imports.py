@@ -116,3 +116,30 @@ def test_filter_mode_loads_only_the_keystroke_path(tmp_path):
     banned = sorted(m for m in loaded if any(m == b or m.startswith(b + ".") for b in FILTER_BANNED))
     assert banned == [], "a keystroke should load SQLite and the renderer only"
     assert json.loads(finished.stdout)["items"][-1]["title"] == "Index is empty", "the lean kind should still answer"
+
+
+def test_like_and_tag_keystrokes_stay_off_the_network_modules(tmp_path):
+    shelf = tmp_path / "shelf"
+    shelf.mkdir()
+    (shelf / "dune.note").write_text("title: Dune\nauthor: Frank Herbert\nyear: 1965\n\n")
+    environ = dict(
+        os.environ,
+        PYTHONPATH=str(PACKAGE.parent),
+        alfred_workflow_data=str(tmp_path / "data"),
+        alfred_workflow_cache=str(tmp_path / "cache"),
+        fake_shelf=str(shelf),
+        fake_tags="scifi",
+        hoard_embeddings_url="http://e:8081",
+    )
+    subprocess.run([sys.executable, "-m", "hoard", "hoard.testing.fake", "update"], env=environ, check=True, capture_output=True)
+    probe = (
+        "import json, sys\n"
+        "from hoard.cli import main\n"
+        "main('hoard.testing.fake', ['filter', 'like dune'])\n"
+        "main('hoard.testing.fake', ['filter', 'tag'])\n"
+        "print(json.dumps(sorted(sys.modules)), file=sys.stderr)\n"
+    )
+    finished = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True, env=environ, check=True)
+    loaded = json.loads(finished.stderr.strip().splitlines()[-1])
+    assert "hoard._like" in loaded and "hoard._suggest" in loaded, "the probe should really reach like and tag"
+    assert not [m for m in loaded if m.split(".")[0] in ("urllib", "http")], "commands typed in Alfred should not load HTTP"

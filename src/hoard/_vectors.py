@@ -13,6 +13,17 @@ ORDER BY e.mtime DESC
 """
 
 
+WITHOUT_VECTOR = """
+SELECT e.id, e.title, e.fields_json, e.icon FROM entities e
+WHERE NOT EXISTS (SELECT 1 FROM vectors v WHERE v.model = ? AND v.id = e.id)
+ORDER BY e.mtime DESC
+"""
+
+
+def without_vector(con: sqlite3.Connection, model: str) -> list:
+    return con.execute(WITHOUT_VECTOR, (model,)).fetchall()
+
+
 def normalized(vector: array) -> array:
     norm = math.sqrt(sum(x * x for x in vector))
     return array("f", (x / norm for x in vector)) if norm else array("f", vector)

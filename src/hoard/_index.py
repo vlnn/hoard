@@ -241,6 +241,13 @@ def derive_missing(run: Run) -> None:
                 store_derived(run.con, row.found.entity.id, key, value)
 
 
+def make_local_vectors(con: sqlite3.Connection, kind: Kind, ctx: Context) -> None:
+    from hoard import _embed
+
+    if _embed.is_local(kind):
+        _embed.run_local(con, kind, ctx)
+
+
 def start(con: sqlite3.Connection, full: bool) -> int:
     if full:
         _db.drop_cache(con)
@@ -262,4 +269,5 @@ def update(
     settle_mtimes(con)
     derive_missing(run)
     con.commit()
+    make_local_vectors(con, kind, ctx)
     return run.found

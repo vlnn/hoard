@@ -1,24 +1,57 @@
 from __future__ import annotations
 
 import sqlite3
+import sys
+from array import array
 
-from hoard import _answers, _embedder, _models, _neighbours, _vectors
-from hoard._http import ModelError
-from hoard.contract import Context, Kind
+from hoard import _answers, _fold, _models, _neighbours, _vectors
+from hoard.contract import Context, Kind, LocalVectors
+
+LOCAL_PREFIX = "local:"
 
 DEFAULT_MODEL = "default"
 BATCH = 16
 
 
 def embeddings_server(con: sqlite3.Connection, ctx: Context) -> _models.Server:
+    from hoard._http import ModelError
+
     server = _models.server(con, ctx, "embeddings")
     if server is None:
         raise ModelError("no embeddings server is set")
     return server
 
 
-def model_key(con: sqlite3.Connection, ctx: Context) -> str:
+def is_local(kind: Kind) -> bool:
+    return isinstance(kind.like, LocalVectors)
+
+
+def model_key(con: sqlite3.Connection, kind: Kind) -> str:
+    if is_local(kind):
+        return LOCAL_PREFIX + kind.like.name
     return _models.model_of(con, "embeddings") or DEFAULT_MODEL
+
+
+def local_vector(kind: Kind, found):
+    try:
+        return array("f", kind.like.vector(found))
+    except Exception as error:
+        print(f"like {kind.like.name}: {found.entity.title}: {error!r}", file=sys.stderr)
+        return None
+
+
+def run_local(con: sqlite3.Connection, kind: Kind, ctx: Context) -> int:
+    key, made = model_key(con, kind), 0
+    for row in _fold.fold(con, kind, ctx, _vectors.without_vector(con, key)):
+        vector = local_vector(kind, row.found)
+        if vector is None:
+            continue
+        unit = _vectors.normalized(vector)
+        _vectors.store(con, key, row.found.entity.id, unit)
+        _neighbours.insert(con, key, row.found.entity.id, unit)
+        made += 1
+    con.commit()
+    return made
 
 
 def logger(con: sqlite3.Connection):
@@ -26,6 +59,8 @@ def logger(con: sqlite3.Connection):
 
 
 def embed_batch(con: sqlite3.Connection, kind: Kind, server, key: str, batch: list) -> None:
+    from hoard import _embedder
+
     texts = [kind.like.text(evidence) for _, evidence in batch]
     for (entity_id, _), vector in zip(batch, _embedder.embed(server.url, server.model, texts, log=logger(con), key=server.key)):
         unit = _vectors.normalized(vector)
@@ -37,7 +72,9 @@ def embed_batch(con: sqlite3.Connection, kind: Kind, server, key: str, batch: li
 def run(con: sqlite3.Connection, kind: Kind, ctx: Context) -> int:
     if kind.like is None:
         return 0
-    server, key = embeddings_server(con, ctx), model_key(con, ctx)
+    if is_local(kind):
+        return run_local(con, kind, ctx)
+    server, key = embeddings_server(con, ctx), model_key(con, kind)
     waiting = _vectors.missing(con, key)
     for start in range(0, len(waiting), BATCH):
         embed_batch(con, kind, server, key, waiting[start : start + BATCH])

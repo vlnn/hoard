@@ -30,7 +30,9 @@ def title_of(con: sqlite3.Connection, entity_id: str) -> Optional[str]:
     return row[0] if row else None
 
 
-def embed_head(con: sqlite3.Connection, key: str) -> list:
+def embed_head(con: sqlite3.Connection, kind: Kind, key: str) -> list:
+    if _embed.is_local(kind):
+        return []
     waiting = len(_vectors.missing(con, key))
     if not waiting:
         return []
@@ -49,8 +51,8 @@ def neighbour_items(con, kind: Kind, ctx: Context, key: str, seed: str, title: s
 
 
 def like_rows(con, kind: Kind, ctx: Context, words: list) -> tuple:
-    key = _embed.model_key(con, ctx)
-    heads = embed_head(con, key)
+    key = _embed.model_key(con, kind)
+    heads = embed_head(con, kind, key)
     seed = seed_of(con, kind, ctx, words)
     title = title_of(con, seed) if seed else None
     if title is None:

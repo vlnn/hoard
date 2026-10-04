@@ -4,7 +4,7 @@ from typing import Optional
 
 from hoard import _models
 from hoard._fold import Row
-from hoard.contract import Context, Found, Kind
+from hoard.contract import Context, Found, Kind, LocalVectors
 from hoard.items import Head, Item, Mod
 
 SYSTEM_MODS = (Mod("shift", "open", "Open"), Mod("alt", "reveal", "Reveal in Finder"))
@@ -13,6 +13,8 @@ LIKE_MOD = Mod("ctrl", "like", "More like this")
 
 
 def likeable(kind: Kind, ctx: Optional[Context]) -> bool:
+    if isinstance(kind.like, LocalVectors):
+        return True
     return kind.like is not None and ctx is not None and "embeddings" in _models.configured(ctx)
 
 

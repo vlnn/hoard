@@ -124,6 +124,11 @@ class TextEmbedding(NamedTuple):
         return evidence[: self.trim]
 
 
+class LocalVectors(NamedTuple):
+    name: str
+    vector: Callable[[Found], Sequence[float]]
+
+
 def no_icon(entity: Entity) -> Optional[str]:
     return None
 
@@ -147,7 +152,7 @@ class _KindRecord(NamedTuple):
     derive: Mapping[str, Callable[[Found], Optional[str]]] = NOTHING
     nameable: tuple = ()
     tags: Optional[Callable[[Context], Sequence[str]]] = None
-    like: Optional[TextEmbedding] = TextEmbedding()
+    like: Optional[Any] = TextEmbedding()
     last_opened: Optional[Callable[[Context], Optional[str]]] = None
 
 
@@ -159,6 +164,12 @@ class Kind(_KindRecord):
         for problem in problems(kind):
             raise ContractError(f"{kind.name or 'kind'}: {problem}")
         return kind
+
+
+def like_is_valid(like) -> bool:
+    if like is None or isinstance(like, TextEmbedding):
+        return True
+    return isinstance(like, LocalVectors) and bool(like.name) and callable(like.vector)
 
 
 def storage_names(kind: Kind) -> set:
@@ -194,7 +205,7 @@ def problems(kind: Kind) -> list:
         (all(callable(producer) for producer in kind.derive.values()), "derived producers should be callable"),
         (set(kind.nameable) <= set(kind.fields), "nameable should name the kind's fields"),
         (kind.tags is None or callable(kind.tags), "tags should be callable with the context, or None"),
-        (kind.like is None or isinstance(kind.like, TextEmbedding), "like should be a TextEmbedding or None"),
+        (like_is_valid(kind.like), "like should be TextEmbedding(), LocalVectors(name, vector) or None"),
         (kind.last_opened is None or callable(kind.last_opened), "last_opened should be callable or None"),
         (all(isinstance(value, str) for value in kind.labels.values()), "labels should be strings"),
     )
