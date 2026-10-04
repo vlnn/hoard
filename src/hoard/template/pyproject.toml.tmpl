@@ -1,0 +1,19 @@
+[project]
+name = "hoard-$kind"
+version = "0.0.1"
+description = "$title, a hoard kind"
+requires-python = ">=3.9"
+dependencies = ["hoard"]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+hoard = { path = "$hoard_source", editable = true }
+
+[dependency-groups]
+dev = ["pytest", "pytest-mock"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

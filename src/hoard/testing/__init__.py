@@ -1,35 +1,22 @@
 from __future__ import annotations
 
-import os
+import importlib
 
-import pytest
+pytest_plugins = ["hoard.testing.plugin"]
 
-from hoard.contract import Context
-from hoard.testing import builders
-from hoard.testing.fake import KIND as FakeKind
+EXPORTS = {
+    "Conformance": ("hoard.testing.conformance", "Conformance"),
+    "FakeKind": ("hoard.testing.fake", "KIND"),
+    "make_context": ("hoard.testing.builders", "make_context"),
+    "make_epub": ("hoard.testing.builders", "make_epub"),
+    "make_fb2": ("hoard.testing.builders", "make_fb2"),
+}
 
-__all__ = ["FakeKind", "make_context"]
-
-
-def make_context(base, **config: str) -> Context:
-    data = os.path.join(str(base), "data")
-    cache = os.path.join(str(base), "cache")
-    os.makedirs(data, exist_ok=True)
-    os.makedirs(cache, exist_ok=True)
-    return Context(data=data, cache=cache, config=dict(config))
+__all__ = sorted(EXPORTS)
 
 
-@pytest.fixture
-def temp_tree(tmp_path):
-    def build(spec, root="tree"):
-        return builders.temp_tree(tmp_path / root, spec)
-
-    return build
-
-
-@pytest.fixture
-def context_with(tmp_path):
-    def build(**config):
-        return make_context(tmp_path / "workflow", **config)
-
-    return build
+def __getattr__(name: str):
+    if name not in EXPORTS:
+        raise AttributeError(f"module 'hoard.testing' has no attribute {name!r}")
+    module, attribute = EXPORTS[name]
+    return getattr(importlib.import_module(module), attribute)

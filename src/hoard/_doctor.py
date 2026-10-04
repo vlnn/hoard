@@ -4,7 +4,7 @@ import os
 import platform
 import sqlite3
 import sys
-from dataclasses import dataclass
+from typing import NamedTuple
 
 from hoard import _db
 from hoard.contract import Context, Kind, Storage
@@ -13,15 +13,13 @@ LABELS = {"ok": "ok", "warn": "warn", "fail": "FAIL"}
 FLOOR = (3, 9)
 
 
-@dataclass(frozen=True)
-class Check:
+class Check(NamedTuple):
     name: str
     value: str
     status: str
 
 
-@dataclass(frozen=True)
-class Report:
+class Report(NamedTuple):
     checks: tuple
 
     @property

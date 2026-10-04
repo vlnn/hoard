@@ -2,16 +2,17 @@ from __future__ import annotations
 
 import importlib
 import os
-from dataclasses import dataclass, field
-from typing import Any, Callable, Mapping, Optional, Sequence
+from types import MappingProxyType
+from typing import Any, Callable, Mapping, NamedTuple, Optional, Sequence
+
+NOTHING = MappingProxyType({})
 
 
 class ContractError(ValueError):
     pass
 
 
-@dataclass(frozen=True)
-class Entity:
+class Entity(NamedTuple):
     id: str
     title: str
     fields: tuple = ()
@@ -19,8 +20,7 @@ class Entity:
     cover: bytes = b""
 
 
-@dataclass(frozen=True)
-class Sighting:
+class Sighting(NamedTuple):
     id: str
     storage: str
     locator: Optional[str]
@@ -28,35 +28,31 @@ class Sighting:
     size: int
 
 
-@dataclass(frozen=True)
-class Context:
+class Context(NamedTuple):
     data: str
     cache: str
-    config: Mapping[str, str] = field(default_factory=dict)
+    config: Mapping[str, str] = NOTHING
     journal: Optional[Callable[..., Any]] = None
 
     def setting(self, name: str, default: str = "") -> str:
         return self.config.get(name, default)
 
 
-@dataclass(frozen=True)
-class Storage:
+class Storage(NamedTuple):
     name: str
     roots: Callable[[Context], Sequence[str]]
     reader: Callable[[str], Optional[Entity]]
     mounted: Callable[[str], bool] = os.path.isdir
 
 
-@dataclass(frozen=True)
-class Change:
+class Change(NamedTuple):
     id: str
     kind_of_change: str
     before: Any
     after: Any
 
 
-@dataclass(frozen=True)
-class Verb:
+class Verb(NamedTuple):
     label: str
     run: Callable[[Sequence[str], Context], Sequence[Change]]
     undo: Optional[Callable[[Sequence[Change], Context], None]] = None
@@ -66,16 +62,14 @@ class Verb:
         return self.undo is not None
 
 
-@dataclass(frozen=True)
-class Command:
+class Command(NamedTuple):
     label: str
     rows: Callable[[Sequence[str], Context], Sequence[Any]]
     verb: str
     heads: Optional[Callable[[Sequence[str], Context], Sequence[Any]]] = None
 
 
-@dataclass(frozen=True)
-class Step:
+class Step(NamedTuple):
     verb: str
     id: str
     before: Any
@@ -83,8 +77,7 @@ class Step:
     reason: str
 
 
-@dataclass(frozen=True)
-class Plan:
+class Plan(NamedTuple):
     steps: tuple = ()
 
 
@@ -96,8 +89,7 @@ def always_open(entity: Entity) -> str:
     return "open"
 
 
-@dataclass(frozen=True)
-class Kind:
+class _KindRecord(NamedTuple):
     name: str
     keyword: str
     storages: tuple
@@ -105,13 +97,19 @@ class Kind:
     evidence: Callable[[Entity], str]
     icon: Callable[[Entity], Optional[str]] = no_icon
     default_verb: Callable[[Entity], str] = always_open
-    verbs: Mapping[str, Verb] = field(default_factory=dict)
-    commands: Mapping[str, Command] = field(default_factory=dict)
-    labels: Mapping[str, str] = field(default_factory=dict)
+    verbs: Mapping[str, Verb] = NOTHING
+    commands: Mapping[str, Command] = NOTHING
+    labels: Mapping[str, str] = NOTHING
 
-    def __post_init__(self) -> None:
-        for problem in problems(self):
-            raise ContractError(f"{self.name or 'kind'}: {problem}")
+
+class Kind(_KindRecord):
+    __slots__ = ()
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> "Kind":
+        kind = super().__new__(cls, *args, **kwargs)
+        for problem in problems(kind):
+            raise ContractError(f"{kind.name or 'kind'}: {problem}")
+        return kind
 
 
 def problems(kind: Kind) -> list:
@@ -132,16 +130,14 @@ def problems(kind: Kind) -> list:
     return [message for passed, message in checks if not passed]
 
 
-@dataclass(frozen=True)
-class roots_from:
+class roots_from(NamedTuple):
     setting: str
 
     def __call__(self, ctx: Context) -> list:
         return [line.strip() for line in ctx.setting(self.setting).splitlines() if line.strip()]
 
 
-@dataclass(frozen=True)
-class lazy:
+class lazy(NamedTuple):
     module: str
     name: str
 

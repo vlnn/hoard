@@ -1,0 +1,14 @@
+from hoard.contract import Kind
+
+
+def evidence(entity):
+    return entity.title
+
+
+KIND = Kind(
+    name="$kind",
+    keyword="$keyword",
+    storages=(),
+    fields=(),
+    evidence=evidence,
+)

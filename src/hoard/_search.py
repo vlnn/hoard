@@ -7,7 +7,16 @@ LIMIT = 40
 ROWS = """
 SELECT e.id, e.title, e.fields_json, e.icon,
        (SELECT s.locator FROM sightings s WHERE s.id = e.id ORDER BY s.mtime DESC LIMIT 1)
-FROM entities e
+FROM ({chosen}) chosen JOIN entities e ON e.rowid = chosen.rowid
+ORDER BY e.mtime DESC
+"""
+
+NEWEST = "SELECT rowid FROM entities ORDER BY mtime DESC LIMIT ?"
+
+MATCHING = """
+SELECT rowid FROM entities
+WHERE rowid IN (SELECT rowid FROM fts WHERE fts MATCH ?)
+ORDER BY mtime DESC LIMIT ?
 """
 
 
@@ -33,15 +42,14 @@ def is_empty(con: sqlite3.Connection) -> bool:
 
 
 def newest(con: sqlite3.Connection, limit: int = LIMIT) -> list:
-    return con.execute(ROWS + "ORDER BY e.mtime DESC LIMIT ?", (limit,)).fetchall()
+    return con.execute(ROWS.format(chosen=NEWEST), (limit,)).fetchall()
 
 
 def matching(con: sqlite3.Connection, typed: str, limit: int = LIMIT) -> list:
     expression = match_expression(typed)
     if not expression:
         return []
-    sql = ROWS + "WHERE e.id IN (SELECT id FROM fts WHERE fts MATCH ?) ORDER BY e.mtime DESC LIMIT ?"
-    return con.execute(sql, (expression, limit)).fetchall()
+    return con.execute(ROWS.format(chosen=MATCHING), (expression, limit)).fetchall()
 
 
 def search(con: sqlite3.Connection, typed: str) -> list:

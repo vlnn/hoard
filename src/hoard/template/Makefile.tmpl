@@ -1,0 +1,18 @@
+SYSTEM_PYTHON ?= /usr/bin/python3
+
+.PHONY: test test-system build check link
+
+test:
+	uv run pytest
+
+test-system:
+	uv run --isolated --python $(SYSTEM_PYTHON) pytest
+
+build:
+	uv run python -m hoard.build
+
+check:
+	uv run python -m hoard.build --check
+
+link:
+	uv run python -m hoard.build --link

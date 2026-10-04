@@ -6,8 +6,7 @@ import os
 import sqlite3
 import sys
 import time
-from dataclasses import dataclass
-from typing import Callable, Iterator, Optional
+from typing import Callable, Iterator, NamedTuple, Optional
 
 from hoard import _db, _icons
 from hoard.contract import Context, Entity, Kind, Storage
@@ -19,8 +18,7 @@ def ignore_progress(found: int) -> None:
     pass
 
 
-@dataclass(frozen=True)
-class Known:
+class Known(NamedTuple):
     id: str
     mtime: float
     size: int
@@ -29,15 +27,11 @@ class Known:
         return (self.mtime, self.size) == (stat.st_mtime, stat.st_size)
 
 
-@dataclass
 class Run:
-    con: sqlite3.Connection
-    kind: Kind
-    ctx: Context
-    number: int
-    on_progress: Callable[[int], None]
-    found: int = 0
-    found_in_storage: int = 0
+    def __init__(self, con: sqlite3.Connection, kind: Kind, ctx: Context, number: int, on_progress: Callable[[int], None]):
+        self.con, self.kind, self.ctx, self.number, self.on_progress = con, kind, ctx, number, on_progress
+        self.found = 0
+        self.found_in_storage = 0
 
     def start_storage(self) -> None:
         self.found_in_storage = 0
@@ -131,8 +125,12 @@ def store_entity(run: Run, entity: Entity, stat: os.stat_result) -> None:
 
 
 def store_text(con: sqlite3.Connection, entity: Entity) -> None:
-    con.execute("DELETE FROM fts WHERE id = ?", (entity.id,))
-    con.execute("INSERT INTO fts(id, title, body) VALUES (?, ?, ?)", (entity.id, entity.title, fts_body(entity)))
+    (rowid,) = con.execute("SELECT rowid FROM entities WHERE id = ?", (entity.id,)).fetchone()
+    con.execute("DELETE FROM fts WHERE rowid = ?", (rowid,))
+    con.execute(
+        "INSERT INTO fts(rowid, id, title, body) VALUES (?, ?, ?, ?)",
+        (rowid, entity.id, entity.title, fts_body(entity)),
+    )
 
 
 def touch(run: Run, entity_id: str) -> None:
@@ -197,8 +195,9 @@ def update_storage(run: Run, storage: Storage) -> None:
 
 
 def drop_orphans(con: sqlite3.Connection) -> None:
-    con.execute("DELETE FROM fts WHERE id NOT IN (SELECT id FROM sightings)")
-    con.execute("DELETE FROM entities WHERE id NOT IN (SELECT id FROM sightings)")
+    orphans = "SELECT rowid FROM entities WHERE id NOT IN (SELECT id FROM sightings)"
+    con.execute(f"DELETE FROM fts WHERE rowid IN ({orphans})")
+    con.execute(f"DELETE FROM entities WHERE rowid IN ({orphans})")
 
 
 def settle_mtimes(con: sqlite3.Connection) -> None:

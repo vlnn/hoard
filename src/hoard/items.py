@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Optional
+from typing import NamedTuple, Optional
 
 
-@dataclass(frozen=True)
-class Item:
+class Item(NamedTuple):
     id: str
     title: str
     subtitle: str = ""
@@ -14,15 +12,13 @@ class Item:
     verb: str = "open"
 
 
-@dataclass(frozen=True)
-class Head:
+class Head(NamedTuple):
     name: str
     title: str
     subtitle: str = ""
     verb: Optional[str] = None
 
 
-@dataclass(frozen=True)
-class Items:
+class Items(NamedTuple):
     rows: tuple = ()
     rerun: Optional[float] = None

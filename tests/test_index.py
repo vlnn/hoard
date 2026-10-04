@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import dataclasses
 import os
 
 import pytest
@@ -15,12 +14,11 @@ def entity_titles(con):
 
 
 def with_reader(kind, reader):
-    storages = tuple(dataclasses.replace(s, reader=reader) for s in kind.storages)
-    return dataclasses.replace(kind, storages=storages)
+    return kind._replace(storages=tuple(s._replace(reader=reader) for s in kind.storages))
 
 
 def with_icon(kind, icon):
-    return dataclasses.replace(kind, icon=icon)
+    return kind._replace(icon=icon)
 
 
 @pytest.fixture
@@ -90,7 +88,7 @@ def test_entity_mtime_is_the_newest_sighting(tmp_db, ctx, shelf, satchel):
 def test_a_cover_is_written_to_the_cache_folder(tmp_db, ctx, shelf):
     path = write_note(shelf, "dune", "Dune")
     jpeg = b"\xff\xd8\xff\xe0cover"
-    kind = with_reader(FakeKind, lambda p: dataclasses.replace(read_note(p), cover=jpeg) if read_note(p) else None)
+    kind = with_reader(FakeKind, lambda p: read_note(p)._replace(cover=jpeg) if read_note(p) else None)
     _index.update(tmp_db, kind, ctx)
     (icon,) = tmp_db.execute("SELECT icon FROM entities").fetchone()
     assert icon == os.path.join(ctx.cache, "icons", read_note(path).id + ".jpg"), "the cover should be cached by id"
