@@ -77,11 +77,14 @@ def test_a_single_step_row_applies_only_itself(messy, shelf):
     assert (shelf / "download.tmp").exists(), "other steps should wait"
 
 
-def test_a_step_that_would_overwrite_is_skipped(messy, shelf):
+def test_a_step_that_would_overwrite_is_skipped(ctx, shelf):
+    write_note(shelf, "draft", "Dune")
     (shelf / "Dune.note").write_text("another note")
-    assert lines(messy)[1] == "Dune.note | canonical name · from dune.note", "the plan proposes it"
-    assert api.act(FakeKind, "apply", ["plan:"], messy) == "Fixed download.tmp · 1 skipped", (
-        "a move onto an existing file should be skipped and counted"
+    (shelf / "download.tmp").write_bytes(b"half a file")
+    api.update(FakeKind, ctx)
+    assert lines(ctx)[1] == "Dune.note | canonical name · from draft.note", "the plan proposes it"
+    assert api.act(FakeKind, "apply", ["plan:"], ctx) == "Fixed download.tmp · 1 skipped", (
+        "a move onto a different existing file should be skipped and counted"
     )
     assert (shelf / "Dune.note").read_text() == "another note", "nothing should be overwritten"
 
@@ -137,12 +140,12 @@ def test_the_cli_prints_the_plan_without_applying_it(messy, shelf, capsys, monke
     assert (shelf / "dune.note").exists(), "a dry run should not move anything"
 
 
-def test_moving_onto_the_same_file_in_another_case_is_not_a_conflict(tmp_path):
+def test_a_target_that_is_the_same_file_is_not_a_conflict(tmp_path):
     original = tmp_path / "dune.note"
     original.write_text("x")
-    os.link(original, tmp_path / "Dune.note")
-    assert not _plan.blocked(str(original), str(tmp_path / "Dune.note")), (
-        "on a case-insensitive disk the target is the same file, so a case-only rename must go ahead"
+    os.link(original, tmp_path / "alias.note")
+    assert not _plan.blocked(str(original), str(tmp_path / "alias.note")), (
+        "a target that is the same file, as a case-only rename is on macOS, must not block the move"
     )
 
 
