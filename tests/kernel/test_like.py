@@ -5,7 +5,7 @@ from array import array
 
 import pytest
 
-from hoard import _db, _neighbours, _vectors, api, cli
+from hoard import _db, _vectors, api, cli
 from hoard.contract import TextEmbedding
 from hoard.render import text
 from hoard.testing import FakeKind
@@ -68,13 +68,13 @@ def test_vectors_round_trip_through_a_blob():
     assert _vectors.unpacked(_vectors.packed(vector)) == vector, "a stored blob should read back exactly"
 
 
-def test_embedding_stores_every_vector_and_its_neighbours(library, embedder):
-    ctx, ids = library
+def test_embedding_stores_every_vector_with_its_signature(library, embedder):
+    ctx, _ = library
     assert api.embed(FakeKind, ctx) == 4, "every entity with evidence should get a vector"
     con = _db.connect(_db.path_for("fake", ctx.data))
-    (count,) = con.execute("SELECT count(*) FROM neighbours WHERE id = ?", (ids["dune"],)).fetchone()
+    (count,) = con.execute("SELECT count(*) FROM vectors WHERE sig IS NOT NULL").fetchone()
     con.close()
-    assert count == 3, "each entity should list every other one while there are fewer than twenty"
+    assert count == 4, "each vector should be stored with the signature like searches by"
 
 
 def test_like_lists_the_nearest_first_with_a_percentage(library, embedder):
@@ -144,15 +144,6 @@ def test_control_return_reopens_alfred_at_like(library, mocker):
     assert ("ctrl", "like") in [(mod.key, mod.verb) for mod in row.mods], "⌃↩ should mean like"
     api.act(FakeKind, "like", [row.id], ctx)
     assert f'search "fk like #{ids["ubik"]}"' in run.call_args.args[0][-1], "Alfred should reopen at like #id"
-
-
-def test_a_newcomer_is_adopted_by_those_it_outranks(tmp_db):
-    vectors = {"a": [1.0, 0.0], "b": [0.0, 1.0], "c": [0.6, 0.8]}
-    for entity_id, values in vectors.items():
-        _vectors.store(tmp_db, "m", entity_id, _vectors.normalized(array("f", values)))
-        _neighbours.insert(tmp_db, "m", entity_id, _vectors.normalized(array("f", values)), top=1)
-    nearest = dict(tmp_db.execute("SELECT id, other FROM neighbours WHERE model = 'm' AND rank = 0"))
-    assert nearest == {"a": "c", "b": "c", "c": "b"}, "with room for one, everyone should keep only their closest"
 
 
 def test_the_worker_embeds_after_asking(library, embedder, monkeypatch):

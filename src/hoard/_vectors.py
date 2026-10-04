@@ -5,17 +5,19 @@ import sqlite3
 from array import array
 from typing import Optional
 
+from hoard import _signatures
+
 MISSING = """
 SELECT e.id, e.evidence FROM entities e
 WHERE e.evidence IS NOT NULL AND e.evidence != ''
-  AND NOT EXISTS (SELECT 1 FROM vectors v WHERE v.model = ? AND v.id = e.id)
+  AND NOT EXISTS (SELECT 1 FROM vectors v WHERE v.model = ? AND v.id = e.id AND v.sig IS NOT NULL)
 ORDER BY e.mtime DESC
 """
 
 
 WITHOUT_VECTOR = """
 SELECT e.id, e.title, e.fields_json, e.icon FROM entities e
-WHERE NOT EXISTS (SELECT 1 FROM vectors v WHERE v.model = ? AND v.id = e.id)
+WHERE NOT EXISTS (SELECT 1 FROM vectors v WHERE v.model = ? AND v.id = e.id AND v.sig IS NOT NULL)
 ORDER BY e.mtime DESC
 """
 
@@ -40,7 +42,8 @@ def unpacked(blob: bytes) -> array:
 
 
 def store(con: sqlite3.Connection, model: str, entity_id: str, vector: array) -> None:
-    con.execute("INSERT OR REPLACE INTO vectors(model, id, vec) VALUES (?, ?, ?)", (model, entity_id, packed(vector)))
+    signature = _signatures.of(vector)
+    con.execute("INSERT OR REPLACE INTO vectors(model, id, vec, sig) VALUES (?, ?, ?, ?)", (model, entity_id, packed(vector), signature))
 
 
 def missing(con: sqlite3.Connection, model: str) -> list:
@@ -48,7 +51,7 @@ def missing(con: sqlite3.Connection, model: str) -> list:
 
 
 def has_vector(con: sqlite3.Connection, model: str, entity_id: str) -> bool:
-    return con.execute("SELECT 1 FROM vectors WHERE model = ? AND id = ?", (model, entity_id)).fetchone() is not None
+    return con.execute("SELECT 1 FROM vectors WHERE model = ? AND id = ? AND sig IS NOT NULL", (model, entity_id)).fetchone() is not None
 
 
 def every(con: sqlite3.Connection, model: str):

@@ -4,7 +4,7 @@ import sqlite3
 import sys
 from array import array
 
-from hoard import _answers, _fold, _models, _neighbours, _vectors
+from hoard import _answers, _fold, _models, _vectors
 from hoard.contract import Context, Kind, LocalVectors
 
 LOCAL_PREFIX = "local:"
@@ -46,9 +46,7 @@ def run_local(con: sqlite3.Connection, kind: Kind, ctx: Context) -> int:
         vector = local_vector(kind, row.found)
         if vector is None:
             continue
-        unit = _vectors.normalized(vector)
-        _vectors.store(con, key, row.found.entity.id, unit)
-        _neighbours.insert(con, key, row.found.entity.id, unit)
+        _vectors.store(con, key, row.found.entity.id, _vectors.normalized(vector))
         made += 1
     con.commit()
     return made
@@ -63,9 +61,7 @@ def embed_batch(con: sqlite3.Connection, kind: Kind, server, key: str, batch: li
 
     texts = [kind.like.text(evidence) for _, evidence in batch]
     for (entity_id, _), vector in zip(batch, _embedder.embed(server.url, server.model, texts, log=logger(con), key=server.key)):
-        unit = _vectors.normalized(vector)
-        _vectors.store(con, key, entity_id, unit)
-        _neighbours.insert(con, key, entity_id, unit)
+        _vectors.store(con, key, entity_id, _vectors.normalized(vector))
     con.commit()
 
 

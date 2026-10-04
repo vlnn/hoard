@@ -3,11 +3,11 @@ from __future__ import annotations
 import sqlite3
 from typing import Optional
 
-from hoard import _embed, _fold, _rows, _search, _vectors
+from hoard import _embed, _fold, _nearest, _rows, _search, _vectors
 from hoard.contract import Context, Kind
 from hoard.items import Head
 
-NEIGHBOURS = "SELECT other, score FROM neighbours WHERE model = ? AND id = ? ORDER BY rank"
+TOP = 20
 
 
 def newest_id(con: sqlite3.Connection) -> Optional[str]:
@@ -40,9 +40,10 @@ def embed_head(con: sqlite3.Connection, kind: Kind, key: str) -> list:
 
 
 def neighbour_items(con, kind: Kind, ctx: Context, key: str, seed: str, title: str) -> list:
-    scores = dict(con.execute(NEIGHBOURS, (key, seed)).fetchall())
+    ranked = _nearest.nearest(con, key, seed)[: 2 * TOP]
+    scores = {other: score for score, other in ranked}
     rows = _fold.fold(con, kind, ctx, _search.by_ids(con, list(scores)))
-    kept = [row for row in rows if row.found.entity.title.casefold() != title.casefold()]
+    kept = [row for row in rows if row.found.entity.title.casefold() != title.casefold()][:TOP]
     items = []
     for row in kept:
         item = _rows.entity_item(kind, row, ctx=ctx)

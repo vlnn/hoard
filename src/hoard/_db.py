@@ -100,10 +100,16 @@ ALTER TABLE entities ADD COLUMN evidence_hash TEXT;
 UPDATE sightings SET mtime = -1;
 """
 
-MIGRATIONS = (SCHEMA_V1, JOURNAL_KIND_OF_CHANGE, SIGHTINGS_BY_LOCATOR, ENTITY_EVIDENCE)
+VECTOR_SIGNATURES = """
+ALTER TABLE vectors ADD COLUMN sig BLOB;
+CREATE INDEX vectors_signed ON vectors(model, id, sig);
+DROP TABLE neighbours;
+"""
+
+MIGRATIONS = (SCHEMA_V1, JOURNAL_KIND_OF_CHANGE, SIGHTINGS_BY_LOCATOR, ENTITY_EVIDENCE, VECTOR_SIGNATURES)
 
 CACHE_TABLES = frozenset({"entities", "sightings", "fts", "derived", "storage_state"})
-STORE_TABLES = frozenset({"tags", "answers", "vectors", "neighbours", "journal", "exchanges"})
+STORE_TABLES = frozenset({"tags", "answers", "vectors", "journal", "exchanges"})
 KEPT_TABLES = STORE_TABLES | {"derived"}
 REBUILT_TABLES = CACHE_TABLES - {"derived"}
 
