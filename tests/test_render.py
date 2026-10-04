@@ -41,7 +41,7 @@ def test_alfred_document_carries_every_key():
             Item("id2", "Bare"),
             Head("update", "Index is empty", "↩", verb="update"),
             Head("none", "No match"),
-            Head("loose", "Pack all 2", "↩ on every row below", verb="pack", batch="loose dune"),
+            Head("loose", "Pack all 2", "↩ on every row below", verb="pack", arg="batch:loose dune"),
         ),
         rerun=1,
     )

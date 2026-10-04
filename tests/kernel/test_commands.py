@@ -4,7 +4,7 @@ import os
 
 import pytest
 
-from hoard import __version__, api
+from hoard import __version__, _db, api
 from hoard.contract import Command
 from hoard.render import text
 from hoard.testing import FakeKind
@@ -43,7 +43,7 @@ def test_command_words_narrow_its_rows(library):
 
 def test_command_rows_and_batch_carry_its_verb_and_query(library):
     head, *rows = api.filter(FakeKind, "loose  Dune ", library).rows
-    assert (head.verb, head.batch) == ("pack", "loose dune"), "the batch row should carry the verb and the query"
+    assert (head.verb, head.arg) == ("pack", "batch:loose dune"), "the batch row should carry the verb and the query"
     assert {row.verb for row in rows} == {"pack"}, "↩ on a command row should run the command's verb"
 
 
@@ -102,5 +102,5 @@ def test_stats_counts_each_storage(library):
         "» 3 entities",
         "» shelf: 3 | reachable · updated just now",
         "» satchel: 1 | reachable · updated just now",
-        f"» hoard {__version__} | schema v2",
+        f"» hoard {__version__} | schema v{len(_db.MIGRATIONS)}",
     ], "stats should count entities and each storage's copies"

@@ -2,15 +2,16 @@ from __future__ import annotations
 
 import pytest
 
-from hoard import _db, _journal
+from hoard import _journal
 from hoard.contract import Change
 
 COPY = (Change("id1", "copy", "/shelf/a", "/satchel/a"), Change("id2", "copy", "/shelf/b", "/satchel/b"))
 TOSS = (Change("id1", "toss", None, None),)
 
 
-def test_a_fresh_database_is_at_schema_two(tmp_db):
-    assert _db.schema_version(tmp_db) == 2, "the journal's kind_of_change column arrives in schema v2"
+def test_a_fresh_database_has_the_journal_kind_of_change(tmp_db):
+    columns = [row[1] for row in tmp_db.execute("PRAGMA table_info(journal)")]
+    assert "kind_of_change" in columns, "the journal should record what kind of change each row was"
 
 
 def test_batches_are_numbered_in_order(tmp_db):

@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from hoard import api
-from hoard.contract import Context, Entity, Kind, Storage
+from hoard import _index, api
+from hoard.contract import STEP_VERBS, Context, Entity, Kind, Storage
 from hoard.items import Item
 from hoard.render import text
 
@@ -35,7 +35,7 @@ def with_sample_roots(kind: Kind, roots: dict) -> Kind:
 
 
 def files_under(root: Path) -> list:
-    return sorted(str(path) for path in root.rglob("*") if path.is_file())
+    return [path for path, _ in _index.walk(str(root))]
 
 
 def read_samples(storage: Storage, root: Path) -> list:
@@ -176,6 +176,17 @@ class Conformance:
             api.act(samples.kind, name, ids, samples.ctx)
             api.act(samples.kind, "undo", [], samples.ctx)
             assert snapshot(samples.roots) == before, f"{name} then undo should leave every sample byte-identical"
+
+    def test_the_plan_uses_kernel_steps_and_undoes_to_the_byte(self, samples):
+        if self.kind.lint is None:
+            return
+        api.update(samples.kind, samples.ctx)
+        steps = api.plan(samples.kind, "", samples.ctx)
+        assert all(step.verb in STEP_VERBS for step in steps), f"plan steps should use {sorted(STEP_VERBS)}"
+        before = snapshot(samples.roots)
+        api.act(samples.kind, "apply", ["plan:"], samples.ctx)
+        api.act(samples.kind, "undo", [], samples.ctx)
+        assert snapshot(samples.roots) == before, "applying the plan then undoing should leave every byte in place"
 
     def test_verbs_declare_undo(self):
         for name, verb in self.kind.verbs.items():

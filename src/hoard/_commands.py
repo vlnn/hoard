@@ -4,9 +4,9 @@ import sqlite3
 import time
 
 import hoard
-from hoard import _db, _fold, _journal, _rows, _search
+from hoard import _db, _fold, _journal, _plan, _rows, _search
 from hoard.contract import Command, Context, Kind, everything
-from hoard.items import Head
+from hoard.items import Head, Item
 
 RANDOM_ROWS = 10
 
@@ -33,8 +33,11 @@ def update_rows(con, kind, ctx, words) -> tuple:
     return (_rows.update_offer(),)
 
 
+KERNEL_LABELS = {"apply": "Fix"}
+
+
 def verb_label(kind: Kind, verb: str) -> str:
-    return kind.verbs[verb].label if verb in kind.verbs else verb
+    return kind.verbs[verb].label if verb in kind.verbs else KERNEL_LABELS.get(verb, verb)
 
 
 def undo_rows(con, kind, ctx, words) -> tuple:
@@ -66,7 +69,28 @@ def stats_rows(con, kind, ctx, words) -> tuple:
     )
 
 
-KERNEL_COMMANDS = {"update": update_rows, "undo": undo_rows, "rnd": rnd_rows, "stats": stats_rows}
+def plan_for(con, kind: Kind, ctx: Context, typed: str) -> list:
+    if kind.lint is None:
+        return []
+    rows = _fold.fold(con, kind, ctx, _search.search(con, typed, _search.EVERYTHING))
+    steps = list(kind.lint([row.found for row in rows], ctx).steps)
+    return [step for step in steps if step.id] if typed.strip() else steps
+
+
+def step_item(step) -> Item:
+    return Item(_plan.encode(step), _plan.step_title(step), _plan.step_subtitle(step), locator=step.before, verb="apply")
+
+
+def fix_rows(con, kind, ctx, words) -> tuple:
+    typed = " ".join(words)
+    steps = plan_for(con, kind, ctx, typed)
+    if not steps:
+        return (Head("none", "Nothing to fix"),)
+    head = Head("plan", f"Apply {len(steps)}", "↩ runs every step below", verb="apply", arg=f"plan:{typed.lower()}")
+    return (head,) + tuple(step_item(step) for step in steps[: _search.LIMIT])
+
+
+KERNEL_COMMANDS = {"update": update_rows, "undo": undo_rows, "rnd": rnd_rows, "stats": stats_rows, "fix": fix_rows}
 
 
 def final(kind: Kind, verb: str) -> bool:
@@ -79,7 +103,7 @@ def in_sql_only(command: Command) -> bool:
 
 def batch_head(kind: Kind, batch: str, command: Command, total: int) -> Head:
     subtitle = "↩ on every row below" + (" · cannot be undone" if final(kind, command.verb) else "")
-    return Head("batch", f"{command.label} all {total}", subtitle, verb=command.verb, batch=batch)
+    return Head("batch", f"{command.label} all {total}", subtitle, verb=command.verb, arg=f"batch:{batch}")
 
 
 def kept_rows(con, kind: Kind, ctx: Context, command: Command, typed: str) -> list:

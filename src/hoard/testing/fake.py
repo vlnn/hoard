@@ -5,7 +5,7 @@ import os
 import shutil
 from typing import Optional
 
-from hoard.contract import Change, Command, Entity, Kind, Storage, Verb, roots_from
+from hoard.contract import Change, Command, Entity, Kind, Plan, Step, Storage, Verb, roots_from
 
 SUFFIX = ".note"
 
@@ -87,6 +87,28 @@ def toss(founds, ctx) -> list:
     return [Change(found.entity.id, "toss", None, None) for found in founds]
 
 
+def canonical_steps(found) -> list:
+    path = found.locator_in("shelf")
+    if path is None:
+        return []
+    target = os.path.join(os.path.dirname(path), found.entity.title + SUFFIX)
+    return [] if os.path.basename(path) == os.path.basename(target) else [Step("move", found.entity.id, path, target, "canonical name")]
+
+
+def junk_files(root: str) -> list:
+    found = []
+    for folder, folders, files in os.walk(root):
+        folders[:] = sorted(name for name in folders if not name.startswith("."))
+        found += [os.path.join(folder, name) for name in sorted(files) if name.endswith(".tmp")]
+    return found
+
+
+def lint(founds, ctx) -> Plan:
+    renames = [step for found in founds for step in canonical_steps(found)]
+    junk = [Step("trash", "", path, None, "junk") for root in ctx.roots_of("shelf") for path in junk_files(root)]
+    return Plan(tuple(renames + junk))
+
+
 KIND = Kind(
     name="fake",
     keyword="fk",
@@ -98,4 +120,5 @@ KIND = Kind(
     evidence=evidence,
     verbs={"pack": Verb("Pack into the satchel", pack, unpack), "toss": Verb("Toss", toss)},
     commands={"loose": Command("Pack", "pack", off=("satchel",))},
+    lint=lint,
 )

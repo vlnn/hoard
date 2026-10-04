@@ -144,3 +144,16 @@ def test_reader_entity_keeps_its_fields(tmp_db, ctx, shelf):
     _index.update(tmp_db, FakeKind, ctx)
     (fields_json,) = tmp_db.execute("SELECT fields_json FROM entities").fetchone()
     assert fields_json == f'["Frank Herbert", "1965", "{shelf}/dune.note"]', "fields should be stored in kind order"
+
+
+def test_identical_files_in_one_storage_are_two_sightings_of_one_entity(tmp_db, ctx, shelf, mocker):
+    write_note(shelf, "dune", "Dune", "Frank Herbert", "1965")
+    write_note(shelf, "copies/dune", "Dune", "Frank Herbert", "1965")
+    reader = mocker.Mock(wraps=read_note)
+    kind = with_reader(FakeKind, reader)
+    _index.update(tmp_db, kind, ctx)
+    assert entity_titles(tmp_db) == ["Dune"], "identical content should stay one entity"
+    assert tmp_db.execute("SELECT count(*) FROM sightings").fetchone() == (2,), "each copy should be its own sighting"
+    reader.reset_mock()
+    _index.update(tmp_db, kind, ctx)
+    reader.assert_not_called()

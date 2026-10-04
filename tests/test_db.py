@@ -55,8 +55,28 @@ def test_a_version_one_database_migrates_and_keeps_its_journal(tmp_path):
     old.commit()
     old.close()
     con = _db.connect(path)
-    assert _db.schema_version(con) == 2, "an old database should be migrated on connect"
+    assert _db.schema_version(con) == len(_db.MIGRATIONS), "an old database should be migrated on connect"
     assert con.execute("SELECT verb, kind_of_change FROM journal").fetchall() == [("pack", None)], (
         "migration should keep the journal and add the new column empty"
     )
+    con.close()
+
+
+def test_version_two_sightings_survive_the_rekey(tmp_path):
+    import sqlite3
+
+    path = str(tmp_path / "v2.sqlite")
+    old = sqlite3.connect(path)
+    old.executescript(_db.SCHEMA_V1)
+    old.executescript(_db.JOURNAL_KIND_OF_CHANGE)
+    old.execute("INSERT INTO meta VALUES ('schema_version', '2')")
+    old.execute("INSERT INTO sightings VALUES ('id1', 'shelf', '/shelf/a', 1.0, 3)")
+    old.commit()
+    old.close()
+    con = _db.connect(path)
+    assert con.execute("SELECT * FROM sightings").fetchall() == [("id1", "shelf", "/shelf/a", 1.0, 3)], (
+        "rekeying sightings should keep every row"
+    )
+    con.execute("INSERT INTO sightings VALUES ('id1', 'shelf', '/shelf/b', 1.0, 3)")
+    assert con.execute("SELECT count(*) FROM sightings").fetchone() == (2,), "one entity may now sit twice in a storage"
     con.close()

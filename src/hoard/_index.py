@@ -94,7 +94,6 @@ def fts_body(entity: Entity) -> str:
 
 
 def store_sighting(con: sqlite3.Connection, storage: str, entity: Entity, path: str, stat: os.stat_result) -> None:
-    con.execute("DELETE FROM sightings WHERE storage = ? AND locator = ?", (storage, path))
     con.execute(
         "INSERT OR REPLACE INTO sightings(id, storage, locator, mtime, size) VALUES (?, ?, ?, ?, ?)",
         (entity.id, storage, path, stat.st_mtime, stat.st_size),

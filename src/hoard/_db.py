@@ -79,7 +79,22 @@ CREATE TABLE exchanges(at REAL, kind_of TEXT, request TEXT, response TEXT);
 
 JOURNAL_KIND_OF_CHANGE = "ALTER TABLE journal ADD COLUMN kind_of_change TEXT;"
 
-MIGRATIONS = (SCHEMA_V1, JOURNAL_KIND_OF_CHANGE)
+SIGHTINGS_BY_LOCATOR = """
+CREATE TABLE sightings_by_locator(
+    id TEXT NOT NULL,
+    storage TEXT NOT NULL,
+    locator TEXT,
+    mtime REAL,
+    size INTEGER,
+    PRIMARY KEY(storage, locator)
+);
+INSERT INTO sightings_by_locator SELECT id, storage, locator, mtime, size FROM sightings;
+DROP TABLE sightings;
+ALTER TABLE sightings_by_locator RENAME TO sightings;
+CREATE INDEX sightings_id ON sightings(id, storage);
+"""
+
+MIGRATIONS = (SCHEMA_V1, JOURNAL_KIND_OF_CHANGE, SIGHTINGS_BY_LOCATOR)
 
 CACHE_TABLES = frozenset({"entities", "sightings", "fts", "derived", "storage_state"})
 STORE_TABLES = frozenset({"tags", "answers", "vectors", "neighbours", "journal", "exchanges"})

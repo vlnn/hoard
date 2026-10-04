@@ -3,7 +3,7 @@ from __future__ import annotations
 import empty_kind
 import pytest
 
-from hoard.contract import Entity, Kind, Storage, Verb, roots_from
+from hoard.contract import Entity, Kind, Plan, Step, Storage, Verb, roots_from
 from hoard.testing import Conformance, FakeKind
 from hoard.testing import conformance as suite
 from hoard.testing.fake import write_note
@@ -99,3 +99,34 @@ def test_a_verb_whose_undo_leaves_traces_fails_conformance(tmp_path):
     with pytest.raises(AssertionError):
         case.test_undoable_verbs_undo_to_the_byte(suite.Samples(kind, ctx, (), tuple(roots.values())))
         pytest.fail("an undo that leaves the copy behind should fail the suite")
+
+
+def a_lint_proposing(step):
+    def lint(founds, ctx):
+        return Plan((step,))
+
+    return lint
+
+
+def test_a_plan_with_an_unknown_step_fails_conformance(tmp_path):
+    class Shredding(Conformance):
+        kind = FakeKind._replace(lint=a_lint_proposing(Step("shred", "", "/x", None, "?")))
+
+    roots = {name: tmp_path / name for name in ("shelf", "satchel")}
+    for root in roots.values():
+        root.mkdir()
+    kind = suite.with_sample_roots(Shredding.kind, roots)
+    (tmp_path / "data").mkdir()
+    ctx = suite.Context(data=str(tmp_path / "data"), cache=str(tmp_path / "data"))
+    with pytest.raises(AssertionError):
+        Shredding().test_the_plan_uses_kernel_steps_and_undoes_to_the_byte(suite.Samples(kind, ctx, (), tuple(roots.values())))
+        pytest.fail("a step the kernel cannot carry out should fail the suite")
+
+
+def test_samples_are_read_the_way_the_index_walks(tmp_path):
+    write_note(tmp_path, "dune", "Dune")
+    write_note(tmp_path, ".hidden", "Hidden")
+    write_note(tmp_path, ".trash/old", "Old")
+    assert [e.title for e in suite.read_samples(FakeKind.storages[0], tmp_path)] == ["Dune"], (
+        "the suite should skip hidden files and folders exactly like the index"
+    )

@@ -7,6 +7,7 @@ USAGE = """usage: python3 -m hoard <kind module> <mode>
   act <verb> [ids…]         run a verb and print the notification line
   update [--full]           read every storage now
   worker update             the detached background update
+  plan [words]              print the fix plan without applying it
   doctor                    check python, sqlite, folders and storages"""
 
 
@@ -77,7 +78,15 @@ def doctor_mode(module: str, args: list) -> None:
     sys.exit(0 if report.ok else 1)
 
 
+def plan_mode(module: str, args: list) -> None:
+    from hoard import _plan, api
+
+    for step in api.plan(load_kind(module), " ".join(args)):
+        print(_plan.describe(step))
+
+
 MODES = {
+    "plan": plan_mode,
     "filter": filter_mode,
     "act": act_mode,
     "update": update_mode,

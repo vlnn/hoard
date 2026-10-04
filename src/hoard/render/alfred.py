@@ -40,7 +40,7 @@ def head_json(row: Head) -> dict:
     document = {
         "title": row.title,
         "subtitle": row.subtitle,
-        "arg": f"batch:{row.batch}" if row.batch else f"head:{row.name}",
+        "arg": row.arg or f"head:{row.name}",
         "valid": row.verb is not None,
     }
     if row.verb is not None:

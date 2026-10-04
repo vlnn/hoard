@@ -24,7 +24,7 @@ class Head(NamedTuple):
     title: str
     subtitle: str = ""
     verb: Optional[str] = None
-    batch: str = ""
+    arg: str = ""
 
 
 class Items(NamedTuple):

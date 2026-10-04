@@ -6,8 +6,9 @@ from types import MappingProxyType
 from typing import Any, Callable, Mapping, NamedTuple, Optional, Sequence
 
 NOTHING = MappingProxyType({})
-KERNEL_VERBS = frozenset({"open", "reveal", "update", "undo"})
-KERNEL_COMMANDS = frozenset({"update", "undo", "rnd", "stats"})
+KERNEL_VERBS = frozenset({"open", "reveal", "update", "undo", "apply"})
+KERNEL_COMMANDS = frozenset({"update", "undo", "rnd", "stats", "fix"})
+STEP_VERBS = frozenset({"move", "trash"})
 COMMAND_VERBS = frozenset({"open", "reveal"})
 
 
@@ -132,6 +133,7 @@ class _KindRecord(NamedTuple):
     verbs: Mapping[str, Verb] = NOTHING
     commands: Mapping[str, Command] = NOTHING
     labels: Mapping[str, str] = NOTHING
+    lint: Optional[Callable[[Sequence[Found], Context], Plan]] = None
 
 
 class Kind(_KindRecord):
@@ -164,6 +166,7 @@ def problems(kind: Kind) -> list:
         (callable(kind.evidence), "evidence should be callable"),
         (callable(kind.icon), "icon should be callable"),
         (callable(kind.default_verb), "default_verb should be callable"),
+        (kind.lint is None or callable(kind.lint), "lint should be callable or None"),
         (all(isinstance(v, Verb) for v in kind.verbs.values()), "verbs should be Verb records"),
         (all(isinstance(c, Command) for c in kind.commands.values()), "commands should be Command records"),
         (not KERNEL_VERBS & set(kind.verbs), f"verb names {sorted(KERNEL_VERBS)} belong to the kernel"),

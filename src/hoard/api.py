@@ -55,6 +55,15 @@ def act(kind: Kind, verb: str, ids, ctx: Optional[Context] = None) -> str:
         con.close()
 
 
+def plan(kind: Kind, typed: str = "", ctx: Optional[Context] = None) -> list:
+    ctx = context(kind, ctx)
+    con = open_database(kind, ctx)
+    try:
+        return _commands.plan_for(con, kind, ctx, typed)
+    finally:
+        con.close()
+
+
 def doctor(kind: Kind, ctx: Optional[Context] = None):
     from hoard import _doctor
 

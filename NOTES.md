@@ -12,9 +12,7 @@ and what still has to be checked on the Mac.
 3. `entities.mtime` is the newest sighting's file mtime; Phase 4 turns it into a kind-supplied sort key.
 4. `Kind.icon` returns a bundle-relative path (`icons/epub.png`); covers arrive as bytes on
    `Entity.cover` and are cached as files.
-5. `sightings` is keyed `(id, storage)`, so two byte-identical files in one storage keep one
-   sighting and the other is re-read on every update until `lint` removes duplicates (Slice C).
-6. `hoard.testing` ships `make_epub` and `make_fb2`, as the plan asks; `make_mp3`/`make_flac` join them in Phase 3.
+5. `hoard.testing` ships `make_epub` and `make_fb2`, as the plan asks; `make_mp3`/`make_flac` join them in Phase 3.
 
 ## Departures from the plan
 
@@ -65,6 +63,28 @@ lets the kind decide.
 - **`make doctor`** links the workflow and runs doctor there; doctor fills Alfred's folders from
   `info.plist` and the settings from `prefs.plist`, so no environment variables are needed.
 
+## Slice C: plans
+
+- **`Kind.lint(founds, ctx) -> Plan`**, not the plan's `lint(storage, ctx)`: the kind sees every
+  entity with every sighting, plus every storage's roots in `ctx` for files that are not entities
+  (junk). It returns steps; it never touches a file itself.
+- **Two step verbs, both carried out by the kernel:** `move` (within one storage) and `trash` (into
+  `.hoard-trash/` at that storage's root, keeping the relative path and never overwriting).
+  Steps may move folders, so a book's KOReader `.sdr` sidecar can travel with it. A step whose
+  source is gone, whose target exists, or whose paths lie outside every storage is skipped and counted.
+- **`fix [words]`** lists the plan under an "Apply N" row; one row applies one step, the head row
+  re-computes and applies the whole plan (`arg = "plan:<words>"`). Words narrow the plan to matching
+  entities and drop steps that belong to no entity. The plan's separate `remove` command is not needed:
+  duplicates and junk are `trash` steps in the same plan.
+- **One journal batch per apply**, undone in reverse; folders emptied by a step are removed and
+  recreated on undo. `python3 -m hoard <kind> plan [words]` prints the plan without applying it.
+- **`sightings` is keyed `(storage, locator)`** (schema v3), so identical copies in one storage are
+  separate sightings: the kind can see duplicates, and they are no longer re-read on every update.
+- **Cost:** `fix` lints every entity, about 190 ms at 10 000; it is a deliberate command, not typing.
+- **Conformance** applies a kind's whole sample plan and undoes it to the byte, and reads samples
+  with the index's own walk, so hidden files such as `._book.epub` are skipped the same way.
+- **macOS:** names are compared after NFC normalisation, and a case-only rename is not a conflict.
+
 ## To verify on the Mac
 
 - **Keystroke budget in Alfred's debugger.** Measured here on Python 3.9 (stand-in for
@@ -106,3 +126,11 @@ lets the kind decide.
 | journal: batches, `undo` row and verb, undoable honoured | done |
 | kind verbs and commands with batch rows | done, over `Found` and `on`/`off` |
 | Books: device storage and one undoable verb, `copy_in` | done; the rest of the reading loop is the kind's business, not hoard's |
+
+## Slice C status
+
+| Item | State |
+| --- | --- |
+| `Plan` of `Step(verb, id, before, after, reason)`, one row per step, Apply N, dry run from the CLI | done |
+| Books lint: canonical names, byte-identical duplicates, junk; trash inside the storage root | done, device only |
+| messy tree cleaned by `fix` and undone to the byte | done, in Books' tests and in the conformance suite |
