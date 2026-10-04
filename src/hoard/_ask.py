@@ -33,7 +33,7 @@ def logger(con: sqlite3.Connection):
 def ask_one(con, kind: Kind, ctx: Context, server, question: str, entity_id: str) -> bool:
     text, digest = evidence(con, entity_id)
     schema = _questions.schema(kind, ctx, question)
-    answer = _oracle.ask(server.url, server.model, _questions.text(kind, question), text, schema, log=logger(con))
+    answer = _oracle.ask(server.url, server.model, _questions.text(kind, question), text, schema, log=logger(con), key=server.key)
     if answer is None:
         return False
     _answers.store(con, entity_id, question, digest, server.model, answer)

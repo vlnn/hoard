@@ -24,16 +24,19 @@ def reason_of(error: Exception) -> str:
     return str(error) or type(error).__name__
 
 
-def as_request(url: str, payload: Optional[dict]) -> urllib.request.Request:
-    if payload is None:
-        return urllib.request.Request(url)
-    data = json.dumps(payload).encode("utf-8")
-    return urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+def headers_for(payload: Optional[dict], key: str) -> dict:
+    headers = {"Content-Type": "application/json"} if payload is not None else {}
+    return {**headers, "Authorization": f"Bearer {key}"} if key else headers
 
 
-def request(url: str, payload: Optional[dict] = None, timeout: float = TIMEOUT) -> dict:
+def as_request(url: str, payload: Optional[dict], key: str = "") -> urllib.request.Request:
+    data = json.dumps(payload).encode("utf-8") if payload is not None else None
+    return urllib.request.Request(url, data=data, headers=headers_for(payload, key))
+
+
+def request(url: str, payload: Optional[dict] = None, timeout: float = TIMEOUT, key: str = "") -> dict:
     try:
-        with urllib.request.urlopen(as_request(url, payload), timeout=timeout) as response:
+        with urllib.request.urlopen(as_request(url, payload, key), timeout=timeout) as response:
             return json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, OSError, ValueError) as error:
         raise ModelError(reason_of(error), url) from error

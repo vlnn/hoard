@@ -27,7 +27,7 @@ class Report(NamedTuple):
         return all(check.status != "fail" for check in self.checks)
 
     def lines(self) -> list:
-        return [f"{LABELS[c.status]:<6}{c.name:<17}{c.value}" for c in self.checks]
+        return [f"{LABELS[c.status]:<6}{c.name:<16} {c.value}" for c in self.checks]
 
 
 def creates_table(definition: str) -> bool:
@@ -89,7 +89,8 @@ def index_check(kind: Kind, ctx: Context) -> Check:
     con = _db.connect(path)
     try:
         (count,) = con.execute("SELECT count(*) FROM entities").fetchone()
-        return Check("index", f"{count} entities · schema v{_db.schema_version(con)} · {path}", "ok")
+        noun = "entity" if count == 1 else "entities"
+        return Check("index", f"{count} {noun} · schema v{_db.schema_version(con)} · {path}", "ok")
     finally:
         con.close()
 
@@ -108,8 +109,13 @@ def shown(value: str) -> str:
     return " · ".join(line.strip() for line in value.splitlines() if line.strip())
 
 
+SECRET_SUFFIX = "_key"
+
+
 def setting_check(ctx: Context, variable: str, label: str) -> Check:
     value = shown(ctx.setting(variable))
+    if value and variable.endswith(SECRET_SUFFIX):
+        value = "set"
     return Check("setting", f"{label}: {value}" if value else f"{label}: not set", "ok" if value else "warn")
 
 
@@ -118,7 +124,7 @@ def server_check(ctx: Context, role: str) -> Check:
 
     url = _models.url_of(ctx, role)
     try:
-        offered = _models.available(url)
+        offered = _models.available(url, _models.key_of(ctx, role))
     except ModelError as error:
         return Check(f"{role} server", f"{url} not reachable: {error.reason}", "warn")
     return Check(f"{role} server", " · ".join([url, *offered]), "ok")

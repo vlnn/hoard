@@ -23,6 +23,12 @@ def test_ask_requests_an_answer_in_the_schema(replies):
     assert "Dune by Frank Herbert" in payload["messages"][-1]["content"], "the evidence should be sent"
 
 
+def test_ask_sends_the_servers_key(replies):
+    urlopen = replies(chat_reply({"title": "Dune"}))
+    _oracle.ask("http://m:8080", "qwen", "Q?", "E", SCHEMA, key="secret")
+    assert urlopen.call_args.args[0].get_header("Authorization") == "Bearer secret", "chat should authenticate"
+
+
 def test_malformed_json_is_asked_once_more(replies):
     replies(chat_reply("{not json"), chat_reply({"title": "Dune"}))
     assert ask() == {"title": "Dune"}, "one retry should rescue a malformed answer"

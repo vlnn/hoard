@@ -52,6 +52,13 @@ def test_an_unreachable_server_says_why(served, replies):
     )
 
 
+def test_model_listing_sends_each_servers_key(served, replies):
+    urlopen = replies(models("qwen"), models("nomic"))
+    lines(served._replace(config={**served.config, "hoard_embeddings_key": "secret"}))
+    headers = [call.args[0].get_header("Authorization") for call in urlopen.call_args_list]
+    assert headers == [None, "Bearer secret"], "only the server with a key should get one"
+
+
 def test_a_slow_server_gets_a_few_seconds(served, replies):
     urlopen = replies(models("qwen"), models("nomic"))
     lines(served)

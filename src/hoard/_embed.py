@@ -27,7 +27,7 @@ def logger(con: sqlite3.Connection):
 
 def embed_batch(con: sqlite3.Connection, kind: Kind, server, key: str, batch: list) -> None:
     texts = [kind.like.text(evidence) for _, evidence in batch]
-    for (entity_id, _), vector in zip(batch, _embedder.embed(server.url, server.model, texts, log=logger(con))):
+    for (entity_id, _), vector in zip(batch, _embedder.embed(server.url, server.model, texts, log=logger(con), key=server.key)):
         unit = _vectors.normalized(vector)
         _vectors.store(con, key, entity_id, unit)
         _neighbours.insert(con, key, entity_id, unit)

@@ -153,7 +153,7 @@ def role_rows(con, ctx: Context, role: str) -> list:
 
     url = _models.url_of(ctx, role)
     try:
-        offered = _models.available(url)
+        offered = _models.available(url, _models.key_of(ctx, role))
     except ModelError as error:
         return [Head(f"model:{role}", f"{role.title()} server not reachable", f"{url} · {error.reason}")]
     chosen = _models.model_of(con, role)

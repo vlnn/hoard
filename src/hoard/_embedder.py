@@ -18,11 +18,11 @@ def vectors_of(reply: dict) -> list:
     return [array("f", item["embedding"]) for item in sorted(reply["data"], key=lambda item: item["index"])]
 
 
-def embed(url: str, model: str, texts, log: Optional[Callable[[str, dict, object], None]] = None) -> list:
+def embed(url: str, model: str, texts, log: Optional[Callable[[str, dict, object], None]] = None, key: str = "") -> list:
     found = []
     for chunk in chunks([text[:TRIM] for text in texts]):
         sent = {"model": model, "input": chunk}
-        reply = request(f"{url}/v1/embeddings", sent)
+        reply = request(f"{url}/v1/embeddings", sent, key=key)
         if log:
             log("embeddings", sent, {"count": len(reply.get("data", []))})
         found += vectors_of(reply)

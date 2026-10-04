@@ -48,10 +48,23 @@ def test_doctor_warns_about_an_unconfigured_storage(context_with):
 
 
 def test_doctor_lines_align_status_name_and_value():
-    report = _doctor.Report((_doctor.Check("python", "3.9.6", "ok"), _doctor.Check("fts5", "missing", "fail")))
-    assert report.lines() == ["ok    python           3.9.6", "FAIL  fts5             missing"], (
-        "lines should be readable in a terminal"
+    report = _doctor.Report(
+        (
+            _doctor.Check("python", "3.9.6", "ok"),
+            _doctor.Check("fts5", "missing", "fail"),
+            _doctor.Check("embeddings server", "http://e:8081", "ok"),
+        )
     )
+    assert report.lines() == [
+        "ok    python           3.9.6",
+        "FAIL  fts5             missing",
+        "ok    embeddings server http://e:8081",
+    ], "lines should be readable in a terminal, with a space after even the longest name"
+
+
+def test_doctor_never_prints_an_api_key(ctx):
+    report = api.doctor(FakeKind, ctx._replace(config={**ctx.config, "hoard_chat_key": "secret"}), settings=[("hoard_chat_key", "Chat server API key")])
+    assert "secret" not in "\n".join(report.lines()), "a key should be reported as set, never shown"
 
 
 @pytest.mark.parametrize(

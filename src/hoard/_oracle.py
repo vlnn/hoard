@@ -41,10 +41,11 @@ def ask(
     evidence: str,
     schema: dict,
     log: Optional[Callable[[str, dict, object], None]] = None,
+    key: str = "",
 ) -> Optional[dict]:
     sent = payload(model, question, evidence, schema)
     for _ in range(ATTEMPTS):
-        reply = request(f"{url}/v1/chat/completions", sent)
+        reply = request(f"{url}/v1/chat/completions", sent, key=key)
         answer = parsed(reply)
         (log or ignore)("chat", sent, answer if answer is not None else reply)
         if answer is not None:

@@ -32,6 +32,12 @@ def test_embed_sends_microbatches(replies, count, calls):
     assert urlopen.call_count == calls, "texts should go sixteen at a time"
 
 
+def test_embed_sends_the_servers_key(replies):
+    urlopen = replies(embeddings([1.0]))
+    _embedder.embed("http://e:8081", "nomic", ["a"], key="secret")
+    assert urlopen.call_args.args[0].get_header("Authorization") == "Bearer secret", "embeddings should authenticate"
+
+
 def test_long_texts_are_trimmed(replies):
     urlopen = replies(embeddings([1.0]))
     _embedder.embed("http://e:8081", "nomic", ["x" * 5000])

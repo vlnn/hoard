@@ -33,6 +33,11 @@ def test_a_server_names_its_chosen_model(tmp_db):
     assert _models.server(tmp_db, ctx, "chat").model == "qwen", "the chosen model should be remembered"
 
 
+def test_a_server_carries_its_api_key(tmp_db):
+    ctx = ctx_with(hoard_embeddings_url="http://e:8081", hoard_embeddings_key=" secret ")
+    assert _models.server(tmp_db, ctx, "embeddings").key == "secret", "the key should come from the settings, trimmed"
+
+
 def test_no_url_means_no_server(tmp_db):
     assert _models.server(tmp_db, ctx_with(), "chat") is None, "without a URL there is no server"
 

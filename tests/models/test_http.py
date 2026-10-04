@@ -18,6 +18,13 @@ def test_a_post_sends_json_and_parses_the_reply(replies):
     assert request.get_header("Content-type") == "application/json", "the request should declare JSON"
 
 
+@pytest.mark.parametrize("key, header", [("secret", "Bearer secret"), ("", None)])
+def test_an_api_key_is_sent_as_a_bearer_token(replies, key, header):
+    urlopen = replies({"ok": True})
+    _http.request("http://m:8080/v1/models", key=key)
+    assert urlopen.call_args.args[0].get_header("Authorization") == header, "a key should travel as a bearer token"
+
+
 def test_a_get_sends_no_body(replies):
     urlopen = replies({"data": []})
     _http.request("http://m:8080/v1/models")
