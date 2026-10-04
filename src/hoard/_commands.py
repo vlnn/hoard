@@ -154,8 +154,8 @@ def role_rows(con, ctx: Context, role: str) -> list:
     url = _models.url_of(ctx, role)
     try:
         offered = _models.available(url)
-    except ModelError:
-        return [Head(f"model:{role}", f"{role.title()} server not reachable", url)]
+    except ModelError as error:
+        return [Head(f"model:{role}", f"{role.title()} server not reachable", f"{url} · {error.reason}")]
     chosen = _models.model_of(con, role)
     return [Head(f"model:{role}", f"{role.title()} models", url)] + [model_item(role, m, chosen) for m in offered]
 

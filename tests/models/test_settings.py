@@ -17,6 +17,9 @@ def ctx_with(**config):
         ({"hoard_chat_url": "  "}, "chat", ""),
         ({}, "embeddings", ""),
         ({"hoard_embeddings_url": "http://e:8081"}, "embeddings", "http://e:8081"),
+        ({"hoard_embeddings_url": "http://e:8081/v1"}, "embeddings", "http://e:8081"),
+        ({"hoard_embeddings_url": "http://e:8081/v1/"}, "embeddings", "http://e:8081"),
+        ({"hoard_chat_url": "https://box.local/llm/v1"}, "chat", "https://box.local/llm"),
     ],
 )
 def test_server_urls_come_from_the_workflow_settings(config, role, url):

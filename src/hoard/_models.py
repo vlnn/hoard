@@ -7,7 +7,8 @@ from hoard import _db
 from hoard.contract import Context
 
 ROLES = ("chat", "embeddings")
-PROBE_TIMEOUT = 1.0
+PROBE_TIMEOUT = 3.0
+OPENAI_PREFIX = "/v1"
 
 SETTINGS = (
     ("hoard_chat_url", "Chat model server", "text", "A llama-server URL, e.g. http://localhost:8080; enables name and tag"),
@@ -23,7 +24,8 @@ class Server(NamedTuple):
 
 
 def url_of(ctx: Context, role: str) -> str:
-    return ctx.setting(f"hoard_{role}_url").strip().rstrip("/")
+    url = ctx.setting(f"hoard_{role}_url").strip().rstrip("/")
+    return url[: -len(OPENAI_PREFIX)] if url.endswith(OPENAI_PREFIX) else url
 
 
 def model_of(con: sqlite3.Connection, role: str) -> str:

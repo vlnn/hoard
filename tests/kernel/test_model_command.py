@@ -45,9 +45,17 @@ def test_model_lists_what_each_server_offers(served, replies):
     ], "model should list each server's models and mark the one in use"
 
 
-def test_an_unreachable_server_says_so(served, replies):
-    replies(urllib.error.URLError("refused"), models("nomic"))
-    assert lines(served)[0] == "» Chat server not reachable | http://m:8080", "a dead server should be named"
+def test_an_unreachable_server_says_why(served, replies):
+    replies(urllib.error.URLError("Connection refused"), models("nomic"))
+    assert lines(served)[0] == "» Chat server not reachable | http://m:8080 · Connection refused", (
+        "a dead server should be named, with the reason"
+    )
+
+
+def test_a_slow_server_gets_a_few_seconds(served, replies):
+    urlopen = replies(models("qwen"), models("nomic"))
+    lines(served)
+    assert urlopen.call_args.kwargs["timeout"] == 3.0, "listing models should allow a server a few seconds"
 
 
 def test_choosing_a_model_remembers_it(served, replies):

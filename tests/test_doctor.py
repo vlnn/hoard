@@ -58,7 +58,7 @@ def test_doctor_lines_align_status_name_and_value():
     "reply, status, value",
     [
         ({"data": [{"id": "qwen"}]}, "ok", "http://m:8080 · qwen"),
-        (urllib.error.URLError("refused"), "warn", "http://m:8080 not reachable"),
+        (urllib.error.URLError("refused"), "warn", "http://m:8080 not reachable: refused"),
     ],
 )
 def test_doctor_checks_each_configured_model_server(ctx, replies, reply, status, value):

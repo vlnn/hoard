@@ -119,8 +119,8 @@ def server_check(ctx: Context, role: str) -> Check:
     url = _models.url_of(ctx, role)
     try:
         offered = _models.available(url)
-    except ModelError:
-        return Check(f"{role} server", f"{url} not reachable", "warn")
+    except ModelError as error:
+        return Check(f"{role} server", f"{url} not reachable: {error.reason}", "warn")
     return Check(f"{role} server", " · ".join([url, *offered]), "ok")
 
 
