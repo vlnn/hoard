@@ -118,3 +118,79 @@ def test_version_five_keeps_vectors_unsigned_and_drops_neighbours(tmp_path):
         "old vectors should stay, unsigned, until they are made again"
     )
     con.close()
+
+
+def test_a_migration_rereads_the_version_once_it_holds_the_write_lock(tmp_path, mocker):
+    import sqlite3
+
+    path = str(tmp_path / "k.sqlite")
+    _db.connect(path).close()
+    latest = _db.schema_version
+    stale = iter([1])
+    mocker.patch("hoard._db.schema_version", side_effect=lambda con: next(stale, None) or latest(con))
+    con = sqlite3.connect(path)
+    _db.migrate(con)
+    assert latest(con) == len(_db.MIGRATIONS), "a version read before another process migrated should not migrate again"
+    con.close()
+
+
+def test_a_failing_migration_leaves_the_database_at_its_old_version(tmp_path, mocker):
+    import sqlite3
+
+    path = str(tmp_path / "k.sqlite")
+    _db.connect(path).close()
+    mocker.patch("hoard._db.MIGRATIONS", (*_db.MIGRATIONS, "CREATE TABLE extra(x);\nCREATE TABLE extra(x);"))
+    con = sqlite3.connect(path)
+    with pytest.raises(sqlite3.OperationalError):
+        _db.migrate(con)
+    con.close()
+    reopened = sqlite3.connect(path)
+    assert _db.schema_version(reopened) == len(_db.MIGRATIONS) - 1, "a failed migration should not bump the version"
+    assert "extra" not in table_names(reopened), "a failed migration should leave nothing half applied"
+    reopened.close()
+
+
+@pytest.mark.parametrize("attempt", range(5))
+def test_connections_racing_to_a_new_database_all_succeed(tmp_path, attempt):
+    import sqlite3
+    import threading
+
+    path = str(tmp_path / "k.sqlite")
+    start = threading.Barrier(8)
+    errors = []
+
+    def connecting():
+        start.wait()
+        try:
+            _db.connect(path).close()
+        except sqlite3.Error as error:
+            errors.append(error)
+
+    threads = [threading.Thread(target=connecting) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert errors == [], "the filter and the worker opening a new database together should both get the full schema"
+    con = _db.connect(path)
+    (mode,) = con.execute("PRAGMA journal_mode").fetchone()
+    con.close()
+    assert mode == "wal", "a switch to WAL lost in the race should be made by the next connection"
+
+
+def test_a_busy_database_still_connects_and_switches_to_wal_later(tmp_path):
+    import sqlite3
+
+    path = str(tmp_path / "k.sqlite")
+    writer = sqlite3.connect(path)
+    writer.execute("CREATE TABLE held(x)")
+    writer.commit()
+    writer.execute("BEGIN IMMEDIATE")
+    reader = sqlite3.connect(path, timeout=0)
+    _db.write_ahead(reader)
+    writer.rollback()
+    _db.write_ahead(reader)
+    (mode,) = reader.execute("PRAGMA journal_mode").fetchone()
+    reader.close()
+    writer.close()
+    assert mode == "wal", "a locked switch should be skipped quietly and done on a later try"

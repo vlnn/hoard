@@ -8,12 +8,11 @@ import sys
 import time
 from typing import Callable, Iterator, NamedTuple, Optional
 
-from hoard import _db, _fold, _icons, _names
+from hoard import _db, _fold, _icons, _names, _progress
 from hoard._text import refresh_text
 from hoard.contract import Context, Entity, Kind, Storage
 
 BATCH = 200
-PROGRESS_EVERY = 25
 
 
 def ignore_progress(found: int) -> None:
@@ -41,9 +40,7 @@ class Run:
 
     def checked_one(self) -> None:
         self.checked += 1
-        if self.checked % PROGRESS_EVERY == 0:
-            record_checked(self.con, self.checked)
-            self.con.commit()
+        _progress.tick(self.con, self.checked)
 
     def found_one(self, storage: Storage) -> None:
         self.found += 1
@@ -84,16 +81,9 @@ def files_to_check(kind: Kind, ctx: Context) -> int:
     return sum(count_files(root) for storage in kind.storages for root in mounted_roots(storage, ctx))
 
 
-def record_checked(con: sqlite3.Connection, checked: int) -> None:
-    _db.set_meta(con, _db.UPDATE_CHECKED, str(checked))
-
-
 def start_progress(con: sqlite3.Connection, kind: Kind, ctx: Context) -> None:
-    _db.set_meta(con, _db.UPDATE_TOTAL, "")
-    record_checked(con, 0)
-    con.commit()
-    _db.set_meta(con, _db.UPDATE_TOTAL, str(files_to_check(kind, ctx)))
-    con.commit()
+    _progress.begin(con, "update")
+    _progress.count(con, files_to_check(kind, ctx))
 
 
 def next_run(con: sqlite3.Connection) -> int:
@@ -311,7 +301,7 @@ def update(
     start_progress(con, kind, ctx)
     for storage in kind.storages:
         update_storage(run, storage)
-    record_checked(con, run.checked)
+    _progress.advance(con, run.checked)
     drop_orphans(con)
     settle_mtimes(con)
     con.commit()

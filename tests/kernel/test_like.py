@@ -156,3 +156,23 @@ def test_the_worker_embeds_after_asking(library, embedder, monkeypatch):
 
 def test_text_embedding_is_the_default_strategy():
     assert FakeKind.like == TextEmbedding(), "a kind should get like for free"
+
+
+def test_embedding_counts_every_batch_out_of_all_missing(library, embedder, mocker):
+    from hoard import _progress
+
+    ctx, _ = library
+    mocker.patch("hoard._embed.BATCH", 3)
+    watcher = _db.connect(_db.path_for("fake", ctx.data))
+    seen = []
+    answer = embedder.side_effect
+
+    def watching(request, timeout=None):
+        seen.append(_progress.current(watcher))
+        return answer(request, timeout)
+
+    embedder.side_effect = watching
+    api.embed(FakeKind, ctx)
+    assert seen == [("embed", "0", "4"), ("embed", "3", "4")], "each batch should see what was embedded before it"
+    assert _progress.current(watcher) == ("embed", "4", "4"), "the end should count every vector"
+    watcher.close()

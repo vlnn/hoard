@@ -4,7 +4,7 @@ import sqlite3
 import sys
 from array import array
 
-from hoard import _answers, _fold, _models, _vectors
+from hoard import _answers, _fold, _models, _progress, _vectors
 from hoard.contract import Context, Kind, LocalVectors
 
 LOCAL_PREFIX = "local:"
@@ -42,13 +42,15 @@ def local_vector(kind: Kind, found, ctx: Context):
 
 def run_local(con: sqlite3.Connection, kind: Kind, ctx: Context) -> int:
     key, made = model_key(con, kind), 0
-    for row in _fold.fold(con, kind, ctx, _vectors.without_vector(con, key)):
+    rows = _fold.fold(con, kind, ctx, _vectors.without_vector(con, key))
+    _progress.begin(con, "embed", len(rows))
+    for done, row in enumerate(rows, 1):
         vector = local_vector(kind, row.found, ctx)
-        if vector is None:
-            continue
-        _vectors.store(con, key, row.found.entity.id, _vectors.normalized(vector))
-        made += 1
-    con.commit()
+        if vector is not None:
+            _vectors.store(con, key, row.found.entity.id, _vectors.normalized(vector))
+            made += 1
+        _progress.tick(con, done)
+    _progress.advance(con, len(rows))
     return made
 
 
@@ -72,6 +74,9 @@ def run(con: sqlite3.Connection, kind: Kind, ctx: Context) -> int:
         return run_local(con, kind, ctx)
     server, key = embeddings_server(con, ctx), model_key(con, kind)
     waiting = _vectors.missing(con, key)
+    _progress.begin(con, "embed", len(waiting))
     for start in range(0, len(waiting), BATCH):
-        embed_batch(con, kind, server, key, waiting[start : start + BATCH])
+        batch = waiting[start : start + BATCH]
+        embed_batch(con, kind, server, key, batch)
+        _progress.advance(con, start + len(batch))
     return len(waiting)

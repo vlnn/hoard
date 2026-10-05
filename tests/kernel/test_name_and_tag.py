@@ -251,3 +251,22 @@ def test_the_worker_asks_on_demand_or_after_an_update_when_set(served, replies, 
     urlopen = replies(named("Dune", "Frank Herbert", "1965", 0.95), named("Ubik", "Philip K. Dick", "1969", 0.9))
     cli.main("hoard.testing.fake", argv)
     assert (urlopen.call_count == 2) is asked, f"{argv} with ask-on-update {setting!r} should ask: {asked}"
+
+
+@pytest.mark.parametrize("answer", [{"title": "Dune", "confidence": 0.9}, None], ids=["answered", "unanswered"])
+def test_asking_counts_every_entity_asked_out_of_all_stale_questions(served, mocker, answer):
+    from hoard import _progress
+
+    ctx, _ = served
+    watcher = _db.connect(_db.path_for("fake", ctx.data))
+    seen = []
+
+    def answering(*args, **kwargs):
+        seen.append(_progress.current(watcher))
+        return answer
+
+    mocker.patch("hoard._oracle.ask", side_effect=answering)
+    api.ask(FakeKind, ctx, ["name", "tag"])
+    assert seen == [("ask", str(n), "4") for n in range(4)], "each call should see how many were asked before it, out of all"
+    assert _progress.current(watcher) == ("ask", "4", "4"), "the end should count every entity asked, answered or not"
+    watcher.close()

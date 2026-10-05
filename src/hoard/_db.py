@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
-from typing import Optional
+from typing import Iterator, Optional
 
 SCHEMA_V1 = """
 CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT);
@@ -114,10 +114,6 @@ KEPT_TABLES = STORE_TABLES | {"derived"}
 REBUILT_TABLES = CACHE_TABLES - {"derived"}
 
 
-UPDATE_CHECKED = "update_checked"
-UPDATE_TOTAL = "update_total"
-
-
 def path_for(name: str, data: str) -> str:
     return os.path.join(data, f"{name}.sqlite")
 
@@ -125,6 +121,7 @@ def path_for(name: str, data: str) -> str:
 def connect(path: str) -> sqlite3.Connection:
     con = sqlite3.connect(path, timeout=5)
     migrate(con)
+    write_ahead(con)
     return con
 
 
@@ -144,16 +141,53 @@ def schema_version(con: sqlite3.Connection) -> int:
         return 0
 
 
-def migrate(con: sqlite3.Connection) -> None:
-    current = schema_version(con)
-    if current == len(MIGRATIONS):
+def statements(script: str) -> Iterator[str]:
+    pending = ""
+    for line in script.splitlines(keepends=True):
+        pending += line
+        if sqlite3.complete_statement(pending):
+            yield pending
+            pending = ""
+
+
+def apply(con: sqlite3.Connection, version: int, script: str) -> None:
+    for statement in statements(script):
+        con.execute(statement)
+    set_meta(con, "schema_version", str(version))
+
+
+def locked(error: sqlite3.OperationalError) -> bool:
+    return "locked" in str(error)
+
+
+def write_ahead(con: sqlite3.Connection) -> None:
+    (mode,) = con.execute("PRAGMA journal_mode").fetchone()
+    if mode == "wal":
         return
-    if current == 0:
+    try:
         con.execute("PRAGMA journal_mode = WAL")
-    for version, script in enumerate(MIGRATIONS[current:], current + 1):
-        con.executescript(script)
-        set_meta(con, "schema_version", str(version))
-    con.commit()
+    except sqlite3.OperationalError as error:
+        # SQLite skips the busy wait here to avoid deadlock; the next connection switches instead.
+        if not locked(error):
+            raise
+
+
+def apply_missing(con: sqlite3.Connection) -> None:
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        current = schema_version(con)
+        for version, script in enumerate(MIGRATIONS[current:], current + 1):
+            apply(con, version, script)
+        con.commit()
+    except BaseException:
+        con.rollback()
+        raise
+
+
+def migrate(con: sqlite3.Connection) -> None:
+    if schema_version(con) == len(MIGRATIONS):
+        return
+    apply_missing(con)
 
 
 def drop_cache(con: sqlite3.Connection) -> None:

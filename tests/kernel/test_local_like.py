@@ -85,3 +85,19 @@ def test_local_like_never_offers_to_embed(library):
 def test_a_malformed_like_strategy_fails_when_built(like):
     with pytest.raises(ContractError):
         FakeKind.__class__(*FakeKind._replace(like=like))
+
+
+def test_local_vectors_count_as_embedding_during_an_update(library, mocker):
+    from hoard import _db, _progress
+
+    mocker.patch("hoard._progress.EVERY", 1)
+    watcher = _db.connect(_db.path_for(FakeKind.name, library.data))
+    seen = []
+
+    def watching(found, ctx):
+        seen.append(_progress.current(watcher))
+        return by_author(found, ctx)
+
+    api.update(FakeKind._replace(like=LocalVectors("authors", watching)), library)
+    assert seen == [("embed", str(n), "4") for n in range(4)], "local vectors should be counted as embedding, not as checking"
+    watcher.close()

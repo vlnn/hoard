@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from hoard import _commands, _context, _db, _rows, _worker
+from hoard import _commands, _context, _db, _progress, _rows, _worker
 from hoard.contract import Context, Kind
 from hoard.items import Items
 
@@ -23,7 +23,7 @@ def filter(kind: Kind, typed: str, ctx: Optional[Context] = None) -> Items:
         rows = _commands.rows_for(con, kind, ctx, typed)
         if not _worker.running(ctx):
             return Items(rows)
-        return Items((_rows.updating(*_commands.progress(con)),) + rows, rerun=1)
+        return Items((_rows.working(*_progress.current(con)),) + rows, rerun=1)
     finally:
         con.close()
 

@@ -4,7 +4,7 @@ import json
 import sqlite3
 from typing import Optional
 
-from hoard import _answers, _models, _names, _oracle, _questions
+from hoard import _answers, _models, _names, _oracle, _progress, _questions
 from hoard._http import ModelError
 from hoard._text import refresh_text
 from hoard.contract import Context, Kind
@@ -44,12 +44,18 @@ def ask_one(con, kind: Kind, ctx: Context, server, question: str, entity_id: str
     return True
 
 
+def pending(con: sqlite3.Connection, kind: Kind, ctx: Context, questions: Optional[list]) -> list:
+    return [(question, entity_id) for question in asked(kind, ctx, questions) for entity_id, _ in _answers.stale(con, question)]
+
+
 def run(con: sqlite3.Connection, kind: Kind, ctx: Context, questions: Optional[list] = None) -> int:
     server = chat_server(con, ctx)
+    waiting = pending(con, kind, ctx, questions)
+    _progress.begin(con, "ask", len(waiting))
     answered = 0
-    for question in asked(kind, ctx, questions):
-        for entity_id, _ in _answers.stale(con, question):
-            answered += ask_one(con, kind, ctx, server, question, entity_id)
+    for done, (question, entity_id) in enumerate(waiting, 1):
+        answered += ask_one(con, kind, ctx, server, question, entity_id)
+        _progress.advance(con, done)
     return answered
 
 

@@ -4,7 +4,7 @@ import os
 
 import pytest
 
-from hoard import _db, _index
+from hoard import _db, _index, _progress
 from hoard.testing import FakeKind
 from hoard.testing.fake import read_note, write_note
 
@@ -195,21 +195,23 @@ def test_hidden_files_are_not_counted_as_files_to_check(shelf):
 
 
 def test_update_knows_its_total_before_reading_and_counts_every_file_it_checks(tmp_db, ctx, three_notes, mocker):
-    mocker.patch("hoard._index.PROGRESS_EVERY", 1)
+    mocker.patch("hoard._progress.EVERY", 1)
     seen = []
     watcher = _db.connect(tmp_db.execute("PRAGMA database_list").fetchone()[2])
 
     def watching(path):
-        seen.append((_db.meta(watcher, "update_checked"), _db.meta(watcher, "update_total")))
+        seen.append(_progress.current(watcher))
         return read_note(path)
 
     _index.update(tmp_db, with_reader(FakeKind, watching), ctx)
-    assert seen == [("0", "3"), ("1", "3"), ("2", "3")], "each read should see the total and the files checked before it"
-    assert (_db.meta(watcher, "update_checked"), _db.meta(watcher, "update_total")) == ("3", "3"), "the end should be 3 of 3"
+    assert seen == [("update", "0", "3"), ("update", "1", "3"), ("update", "2", "3")], (
+        "each read should see the total and the files checked before it"
+    )
+    assert _progress.current(watcher) == ("update", "3", "3"), "the end should be 3 of 3"
     watcher.close()
 
 
 def test_unchanged_files_count_as_checked_too(tmp_db, ctx, three_notes):
     _index.update(tmp_db, FakeKind, ctx)
     _index.update(tmp_db, FakeKind, ctx)
-    assert _db.meta(tmp_db, "update_checked") == "3", "a second update reads nothing new but still checks every file"
+    assert _progress.current(tmp_db).done == "3", "a second update reads nothing new but still checks every file"

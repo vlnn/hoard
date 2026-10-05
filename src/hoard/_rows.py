@@ -97,5 +97,13 @@ def no_match(typed: str) -> Head:
     return Head("none", f"No match for {typed.strip()}")
 
 
-def updating(checked: str, total: str) -> Head:
-    return Head("updating", "Updating the index…", f"{checked} of {total} checked" if total else "counting files")
+WORKING = {
+    "update": ("Updating the index…", "checked"),
+    "ask": ("Asking the model…", "asked"),
+    "embed": ("Embedding…", "embedded"),
+}
+
+
+def working(job: str, done: str, total: str) -> Head:
+    title, done_word = WORKING.get(job, WORKING["update"])
+    return Head("updating", title, f"{done} of {total} {done_word}" if total else "counting files")
