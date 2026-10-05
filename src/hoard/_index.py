@@ -216,9 +216,9 @@ def settle_mtimes(con: sqlite3.Connection) -> None:
     con.execute("UPDATE entities SET mtime = (SELECT max(s.mtime) FROM sightings s WHERE s.id = entities.id)")
 
 
-def produce(key: str, producer, found):
+def produce(key: str, producer, found, ctx: Context):
     try:
-        return producer(found) or ""
+        return producer(found, ctx) or ""
     except Exception as error:
         print(f"derive {key}: {found.entity.title}: {error!r}", file=sys.stderr)
         return FAILED
@@ -236,7 +236,7 @@ def derive_missing(run: Run) -> None:
     for key, producer in run.kind.derive.items():
         rows = run.con.execute(MISSING, (key,)).fetchall()
         for row in _fold.fold(run.con, run.kind, run.ctx, rows):
-            value = produce(key, producer, row.found)
+            value = produce(key, producer, row.found, run.ctx)
             if value is not FAILED:
                 store_derived(run.con, row.found.entity.id, key, value)
 
@@ -267,7 +267,8 @@ def update(
         update_storage(run, storage)
     drop_orphans(con)
     settle_mtimes(con)
-    derive_missing(run)
     con.commit()
     make_local_vectors(con, kind, ctx)
+    derive_missing(run)
+    con.commit()
     return run.found

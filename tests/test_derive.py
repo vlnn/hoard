@@ -4,11 +4,12 @@ import pytest
 
 from hoard import _index, api
 from hoard.render import text
+from hoard.contract import LocalVectors
 from hoard.testing import FakeKind
 from hoard.testing.fake import write_note
 
 
-def shouted(found) -> str:
+def shouted(found, ctx) -> str:
     with open(found.nearest.locator, encoding="utf-8") as handle:
         return handle.read().partition("\n\n")[2].upper()
 
@@ -70,3 +71,29 @@ def test_a_new_producer_runs_for_entities_already_indexed(tmp_db, ctx, notes):
     _index.update(tmp_db, FakeKind, ctx)
     _index.update(tmp_db, deriving(shouted), ctx)
     assert len(derived_rows(tmp_db)) == 2, "adding a producer should derive for unchanged files too"
+
+
+def test_a_producer_is_given_the_context(tmp_db, ctx, notes, mocker):
+    producer = mocker.Mock(side_effect=shouted)
+    _index.update(tmp_db, deriving(producer), ctx)
+    assert {call.args[1].cache for call in producer.call_args_list} == {ctx.cache}, (
+        "a producer should get the context, e.g. to find its cache folder"
+    )
+
+
+def test_local_vectors_are_made_before_derived_values(tmp_db, ctx, notes):
+    calls = []
+
+    def vector(found, ctx):
+        calls.append(("vector", found.entity.title))
+        return [1.0]
+
+    def producer(found, ctx):
+        calls.append(("derive", found.entity.title))
+        return ""
+
+    kind = deriving(producer)._replace(like=LocalVectors("order", vector))
+    _index.update(tmp_db, kind, ctx)
+    assert [step for step, _ in calls] == ["vector", "vector", "derive", "derive"], (
+        "a kind that analyses once should see the vector pass first and reuse it for derived values"
+    )

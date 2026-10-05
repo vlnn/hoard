@@ -181,10 +181,14 @@ name that differs only in that form would otherwise be renamed on every run.
 
 ## 8. Derived values
 
-`derive={"ocr": producer}` asks hoard to call `producer(found)` once per entity and store the
+`derive={"text": producer}` asks hoard to call `producer(found, ctx)` once per entity and store the
 returned text, which becomes searchable. Update only asks for what is missing, a full rebuild keeps
 what was made, and a producer that raises is asked again next time. Put slow producers behind
 `lazy`; they run in the background worker.
+
+Update makes a kind's `LocalVectors` first and derived values after, so one analysis can serve
+both: Pictures asks Vision once per picture for the feature print, labels and text while making
+the vector, and its `labels` and `text` producers pick up what that pass kept.
 
 ## 9. Models: `name`, `tag` and `like`
 

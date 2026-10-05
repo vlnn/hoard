@@ -137,8 +137,10 @@ look like.
 | 3a `LocalVectors(name, vector)`: like without a model server, vectors made by update | done |
 | 3a like ranked when asked from vector signatures, update linear | done |
 | 3a `vector(found, ctx)` receives the context (1.1.0) | done |
+| 3a derived producers receive `(found, ctx)`; local vectors are made before derived values (1.2.0) | done |
 | 3b readers on the standard library: JPEG EXIF (both byte orders, orientation, GPS), PNG `IHDR`, `eXIf`, `tEXt`, `iTXt`, SVG size, `viewBox`, `title`, `desc`; all searchable | done |
 | 3b like from Apple Vision feature prints, through a Swift helper compiled on first use | done; first compile and timing on the Mac |
+| 3b labels and text in each picture from Vision, in the same pass as the feature print, searchable | done; tuning on the Mac |
 | 3b each picture is its own row icon | done; Alfred to confirm |
 | 3c `docs/writing-a-kind.md` on `LocalVectors`, this file, `hoard 1.0.0` | done |
 
@@ -146,5 +148,6 @@ look like.
 - Vision cannot read SVG, so SVGs are searchable but have no vector and never show in `like`.
 - The Swift source cannot be compiled or run on Linux. The tests there drive a stand-in helper that
   speaks the same line protocol; one test, skipped off macOS, runs the real one.
-- `LocalVectors.vector` took `found` alone in 1.0; 1.1.0 passes `(found, ctx)`. Pictures was its
-  only user, so the change is a minor version rather than 2.0.
+- `LocalVectors.vector` took `found` alone in 1.0; 1.1.0 passes `(found, ctx)`, and 1.2.0 does the
+  same for derived producers. Pictures is the only user of either, so these are minor versions
+  rather than 2.0.

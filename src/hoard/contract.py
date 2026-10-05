@@ -149,7 +149,7 @@ class _KindRecord(NamedTuple):
     commands: Mapping[str, Command] = NOTHING
     labels: Mapping[str, str] = NOTHING
     lint: Optional[Callable[[Sequence[Found], Context], Plan]] = None
-    derive: Mapping[str, Callable[[Found], Optional[str]]] = NOTHING
+    derive: Mapping[str, Callable[[Found, Context], Optional[str]]] = NOTHING
     nameable: tuple = ()
     tags: Optional[Callable[[Context], Sequence[str]]] = None
     like: Optional[Any] = TextEmbedding()
