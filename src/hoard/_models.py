@@ -4,7 +4,7 @@ import sqlite3
 from typing import NamedTuple, Optional
 
 from hoard import _db
-from hoard.contract import Context
+from hoard.contract import Context, Kind, TextEmbedding
 
 ROLES = ("chat", "embeddings")
 PROBE_TIMEOUT = 3.0
@@ -17,6 +17,22 @@ SETTINGS = (
     ("hoard_embeddings_key", "Embeddings server API key", "text", "Sent as a bearer token; leave empty if the server needs none"),
     ("hoard_ask_on_update", "Ask and embed on update", "checkbox", "After each update, ask the models about new things"),
 )
+
+
+ASK_ON_UPDATE = "hoard_ask_on_update"
+
+
+def roles_of(kind: Kind) -> tuple:
+    wanted = {"chat": bool(kind.nameable or kind.tags), "embeddings": isinstance(kind.like, TextEmbedding)}
+    return tuple(role for role in ROLES if wanted[role])
+
+
+def settings_for(roles) -> tuple:
+    return tuple(
+        setting
+        for setting in SETTINGS
+        if any(setting[0].startswith(f"hoard_{role}_") for role in roles) or (roles and setting[0] == ASK_ON_UPDATE)
+    )
 
 
 class Server(NamedTuple):

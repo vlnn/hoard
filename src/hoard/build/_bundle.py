@@ -8,7 +8,7 @@ import sys
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Optional
+from typing import NamedTuple, Optional
 
 import hoard
 from hoard.build._plist import info_plist
@@ -31,12 +31,18 @@ def library_package() -> Path:
     return Path(hoard.__file__).resolve().parent
 
 
-def kind_keyword(repo: Path, kind: str) -> str:
-    probe = f"import {kind}; print({kind}.KIND.keyword)"
+class KindFacts(NamedTuple):
+    keyword: str
+    roles: tuple
+
+
+def kind_facts(repo: Path, kind: str) -> KindFacts:
+    probe = f"import json, {kind}; from hoard import _models; k = {kind}.KIND; print(json.dumps([k.keyword, _models.roles_of(k)]))"
     finished = subprocess.run([sys.executable, "-c", probe], cwd=repo, capture_output=True, text=True)
     if finished.returncode != 0:
         raise BuildError(f"cannot import {kind}.KIND from {repo}:\n{finished.stderr}")
-    return finished.stdout.strip()
+    keyword, roles = json.loads(finished.stdout)
+    return KindFacts(keyword, tuple(roles))
 
 
 def versions(repo: Path, kind: str) -> dict:
@@ -44,8 +50,8 @@ def versions(repo: Path, kind: str) -> dict:
 
 
 def write_static(target: Path, repo: Path, workflow: Workflow) -> None:
-    keyword = kind_keyword(repo, workflow.kind)
-    plist = info_plist(workflow, keyword, kind_version(repo))
+    facts = kind_facts(repo, workflow.kind)
+    plist = info_plist(workflow, facts.keyword, kind_version(repo), facts.roles)
     with open(target / "info.plist", "wb") as handle:
         plistlib.dump(plist, handle)
     (target / "hoard.py").write_text(ENTRY.format(kind=workflow.kind), encoding="utf-8")

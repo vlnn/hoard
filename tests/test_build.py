@@ -162,8 +162,32 @@ def test_check_passes_for_a_kind_whose_folders_are_not_set_yet(repo):
     assert build.check(repo) == "ok: Index is empty", "rows explaining missing folders should not fail the check"
 
 
-def test_every_workflow_gets_the_kernel_model_settings(plist):
+def hoard_variables(plist) -> list:
+    return [entry["variable"] for entry in plist["userconfigurationconfig"] if entry["variable"].startswith("hoard_")]
+
+
+def test_model_settings_follow_the_kinds_own(repo):
+    plist = build.info_plist(build.read_workflow(repo), keyword="sh", roles=("embeddings",))
     variables = [entry["variable"] for entry in plist["userconfigurationconfig"]]
-    assert variables[-5:] == ["hoard_chat_url", "hoard_chat_key", "hoard_embeddings_url", "hoard_embeddings_key", "hoard_ask_on_update"], (
+    assert variables[-3:] == ["hoard_embeddings_url", "hoard_embeddings_key", "hoard_ask_on_update"], (
         "the model settings belong to hoard and should follow the kind's own"
+    )
+
+
+def test_a_kind_without_model_work_gets_no_model_settings(repo):
+    (repo / "shelf" / "__init__.py").write_text(
+        "from hoard.contract import Kind, Storage, roots_from\n"
+        "KIND = Kind(name='shelf', keyword='sh', fields=('path',), evidence=str, like=None,\n"
+        "            storages=(Storage('shelf', roots_from('shelf'), str),))\n"
+    )
+    with zipfile.ZipFile(build.bundle(repo)) as archive:
+        plist = plistlib.loads(archive.read("info.plist"))
+    assert hoard_variables(plist) == [], "pictures and the like should not be asked for model servers"
+
+
+def test_the_template_kind_is_asked_for_an_embeddings_server(repo):
+    with zipfile.ZipFile(build.bundle(repo)) as archive:
+        plist = plistlib.loads(archive.read("info.plist"))
+    assert hoard_variables(plist) == ["hoard_embeddings_url", "hoard_embeddings_key", "hoard_ask_on_update"], (
+        "a kind with the default text like should be offered the embeddings server"
     )

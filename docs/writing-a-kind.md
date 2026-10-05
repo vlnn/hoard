@@ -188,9 +188,11 @@ what was made, and a producer that raises is asked again next time. Put slow pro
 
 ## 9. Models: `name`, `tag` and `like`
 
-Everything here stays invisible until a model server is set in the workflow configuration;
-every workflow gets the settings `hoard_chat_url`, `hoard_embeddings_url` and
-`hoard_ask_on_update` from hoard. `bk model` lists what each llama-server offers and ↩ picks one.
+Everything here stays invisible until a model server is set in the workflow configuration.
+The build adds only the server settings a kind has work for: `hoard_chat_url` and its key when the
+kind is `nameable` or has `tags`, `hoard_embeddings_url` and its key when `like` is
+`TextEmbedding()`, and `hoard_ask_on_update` with either. A kind with none of these, such as
+Pictures, is never asked for a server. `bk model` lists what each llama-server offers and ↩ picks one.
 Models are only ever called from the background worker, never on a keystroke.
 
 ```python

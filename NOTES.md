@@ -70,8 +70,9 @@ The kernel's own files (database, cache, lock, log, icons) are not on this list;
 
 ## Phase 2 departures
 
-- **Model settings belong to hoard.** Every build appends `hoard_chat_url`, `hoard_embeddings_url`
-  and `hoard_ask_on_update` to the kind's configuration; doctor checks each server answers.
+- **Model settings belong to hoard.** The build appends the server settings the kind has work for
+  (chat for `nameable` or `tags`, embeddings for a `TextEmbedding` like, `hoard_ask_on_update`
+  with either); doctor checks each server answers.
 - **Pickers reopen Alfred with `osascript`** (`tell application id "com.runningwithcrayons.Alfred" to
   search …`) instead of an external trigger: ↩ on a tag row and ⌘↩ reopen at `tag #<id>`, ⌃↩ at
   `like #<id>`.
