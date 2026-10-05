@@ -114,7 +114,7 @@ def fixed(changes: list, skipped: int) -> str:
 
 def apply_plan(con: sqlite3.Connection, kind: Kind, ctx: Context, ids) -> str:
     steps = steps_from(con, kind, ctx, ids)
-    changes = [change for change in (_plan.apply_step(step, ctx) for step in steps) if change]
+    changes = [change for change in (_plan.attempted(step, ctx) for step in steps) if change]
     if changes:
         _journal.record(con, "apply", changes, undoable=True)
         con.commit()

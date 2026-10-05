@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from typing import Optional
 
 from hoard._fold import under
@@ -19,8 +20,17 @@ def decode(text: str) -> Step:
     return Step(*json.loads(text[len(PREFIX) :]))
 
 
+def settled(path: str) -> Optional[str]:
+    folder, name = os.path.split(path)
+    return None if name in ("", ".", "..") else os.path.join(os.path.realpath(folder), name)
+
+
+def real_roots(ctx: Context) -> list:
+    return [os.path.realpath(root) for roots in ctx.roots.values() for root in roots]
+
+
 def root_of(path: str, ctx: Context) -> Optional[str]:
-    return next((root for roots in ctx.roots.values() for root in roots if under(path, root)), None)
+    return next((root for root in real_roots(ctx) if under(path, root)), None)
 
 
 def numbered(path: str, n: int) -> str:
@@ -43,7 +53,8 @@ def target_of(step: Step, ctx: Context) -> Optional[str]:
         return None
     if step.verb == "trash":
         return trash_path(step.before, root)
-    return step.after if step.after and under(step.after, root) else None
+    after = settled(step.after) if step.after else None
+    return after if after and under(after, root) else None
 
 
 def blocked(before: str, target: str) -> bool:
@@ -51,8 +62,10 @@ def blocked(before: str, target: str) -> bool:
 
 
 def apply_step(step: Step, ctx: Context) -> Optional[Change]:
-    if step.verb not in STEP_VERBS or not os.path.lexists(step.before):
+    before = settled(step.before)
+    if step.verb not in STEP_VERBS or before is None or not os.path.lexists(before):
         return None
+    step = step._replace(before=before)
     target = target_of(step, ctx)
     if target is None or blocked(step.before, target):
         return None
@@ -68,11 +81,33 @@ def prune_empty(folder: str, root: Optional[str]) -> None:
         folder = os.path.dirname(folder)
 
 
+def attempted(step: Step, ctx: Context) -> Optional[Change]:
+    try:
+        return apply_step(step, ctx)
+    except OSError as error:
+        print(f"apply: {describe(step)}: {error!r}", file=sys.stderr)
+        return None
+
+
+def restorable(change: Change) -> bool:
+    return os.path.lexists(change.after) and not os.path.lexists(change.before)
+
+
+def restore(change: Change, ctx: Context) -> None:
+    os.makedirs(os.path.dirname(change.before), exist_ok=True)
+    os.rename(change.after, change.before)
+    prune_empty(os.path.dirname(change.after), root_of(change.after, ctx))
+
+
 def undo_changes(changes, ctx: Context) -> None:
     for change in reversed(list(changes)):
-        os.makedirs(os.path.dirname(change.before), exist_ok=True)
-        os.rename(change.after, change.before)
-        prune_empty(os.path.dirname(change.after), root_of(change.after, ctx))
+        try:
+            if restorable(change):
+                restore(change, ctx)
+            else:
+                print(f"undo: kept {change.after}, {change.before} is taken or {change.after} is gone", file=sys.stderr)
+        except OSError as error:
+            print(f"undo: {change.after} → {change.before}: {error!r}", file=sys.stderr)
 
 
 def name_of(change: Change) -> str:
