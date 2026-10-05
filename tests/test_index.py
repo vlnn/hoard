@@ -70,6 +70,24 @@ def test_an_unmounted_storage_keeps_its_sightings(tmp_db, context_with, shelf, t
     assert len(entity_titles(tmp_db)) == 3, "an unmounted root should not erase what was seen on it"
 
 
+@pytest.mark.parametrize(
+    "kept, expected",
+    [
+        ("both", ["Dune", "Ubik"]),
+        ("dune only", ["Dune"]),
+        ("none", []),
+    ],
+)
+def test_a_root_no_longer_configured_forgets_what_was_seen_under_it(tmp_db, context_with, tmp_path, kept, expected):
+    first, second = tmp_path / "first", tmp_path / "second"
+    write_note(first, "dune", "Dune")
+    write_note(second, "ubik", "Ubik")
+    _index.update(tmp_db, FakeKind, context_with(fake_shelf=f"{first}\n{second}"))
+    roots = {"both": f"{first}\n{second}", "dune only": str(first), "none": ""}[kept]
+    _index.update(tmp_db, FakeKind, context_with(fake_shelf=roots))
+    assert entity_titles(tmp_db) == expected, f"with {kept} configured, only books under a configured root should stay"
+
+
 def test_the_same_entity_in_two_storages_is_one_entity(tmp_db, ctx, shelf, satchel):
     write_note(shelf, "dune", "Dune", "Frank Herbert", "1965")
     write_note(satchel, "dune copy", "Dune", "Frank Herbert", "1965")
