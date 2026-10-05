@@ -57,12 +57,21 @@ def entity_item(kind: Kind, row: Row, verb: Optional[str] = None, ctx: Optional[
     )
 
 
+def setting_of(storage) -> str:
+    return getattr(storage.roots, "setting", "")
+
+
+def is_unset(storage, ctx: Context) -> bool:
+    setting = setting_of(storage)
+    return not setting or not ctx.setting(setting).strip()
+
+
 def missing_folders(kind: Kind, ctx: Context) -> tuple:
     heads = []
     for storage in kind.storages:
         roots = ctx.roots_of(storage.name)
-        if not roots:
-            setting = getattr(storage.roots, "setting", "its folder")
+        if not roots and is_unset(storage, ctx):
+            setting = setting_of(storage) or "its folder"
             heads.append(Head(f"setup:{storage.name}", f"No folder set for {storage.name}", f"set {setting} in the workflow configuration"))
         heads += [
             Head(f"unreachable:{storage.name}", f"Not reachable: {root}", f"{storage.name} · is the drive connected?")
