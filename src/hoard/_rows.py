@@ -97,5 +97,5 @@ def no_match(typed: str) -> Head:
     return Head("none", f"No match for {typed.strip()}")
 
 
-def updating(found: int) -> Head:
-    return Head("updating", "Updating the index…", f"{found} found so far")
+def updating(checked: str, total: str) -> Head:
+    return Head("updating", "Updating the index…", f"{checked} of {total} checked" if total else "counting files")

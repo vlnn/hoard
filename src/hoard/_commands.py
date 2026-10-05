@@ -191,6 +191,5 @@ def rows_for(con: sqlite3.Connection, kind: Kind, ctx: Context, typed: str) -> t
     return search_rows(con, kind, ctx, typed)
 
 
-def found_so_far(con: sqlite3.Connection) -> int:
-    (total,) = con.execute("SELECT coalesce(sum(count), 0) FROM storage_state").fetchone()
-    return total
+def progress(con: sqlite3.Connection) -> tuple:
+    return _db.meta(con, _db.UPDATE_CHECKED, "0") or "0", _db.meta(con, _db.UPDATE_TOTAL, "") or ""

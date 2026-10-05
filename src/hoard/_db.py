@@ -114,6 +114,10 @@ KEPT_TABLES = STORE_TABLES | {"derived"}
 REBUILT_TABLES = CACHE_TABLES - {"derived"}
 
 
+UPDATE_CHECKED = "update_checked"
+UPDATE_TOTAL = "update_total"
+
+
 def path_for(name: str, data: str) -> str:
     return os.path.join(data, f"{name}.sqlite")
 

@@ -185,3 +185,31 @@ def test_update_stores_the_kinds_evidence_and_its_hash(tmp_db, ctx, shelf):
     evidence, evidence_hash = tmp_db.execute("SELECT evidence, evidence_hash FROM entities").fetchone()
     assert evidence == "Dune\nFrank Herbert\n1965\nspice", "evidence should be what the kind says it is"
     assert evidence_hash == hashlib.blake2b(evidence.encode(), digest_size=16).hexdigest(), "the hash keys the answer cache"
+
+
+def test_hidden_files_are_not_counted_as_files_to_check(shelf):
+    write_note(shelf, "dune", "Dune")
+    write_note(shelf, ".hidden", "Hidden")
+    write_note(shelf, ".cache/ubik", "Ubik")
+    assert _index.count_files(str(shelf)) == 1, "only files update will look at should be counted"
+
+
+def test_update_knows_its_total_before_reading_and_counts_every_file_it_checks(tmp_db, ctx, three_notes, mocker):
+    mocker.patch("hoard._index.PROGRESS_EVERY", 1)
+    seen = []
+    watcher = _db.connect(tmp_db.execute("PRAGMA database_list").fetchone()[2])
+
+    def watching(path):
+        seen.append((_db.meta(watcher, "update_checked"), _db.meta(watcher, "update_total")))
+        return read_note(path)
+
+    _index.update(tmp_db, with_reader(FakeKind, watching), ctx)
+    assert seen == [("0", "3"), ("1", "3"), ("2", "3")], "each read should see the total and the files checked before it"
+    assert (_db.meta(watcher, "update_checked"), _db.meta(watcher, "update_total")) == ("3", "3"), "the end should be 3 of 3"
+    watcher.close()
+
+
+def test_unchanged_files_count_as_checked_too(tmp_db, ctx, three_notes):
+    _index.update(tmp_db, FakeKind, ctx)
+    _index.update(tmp_db, FakeKind, ctx)
+    assert _db.meta(tmp_db, "update_checked") == "3", "a second update reads nothing new but still checks every file"

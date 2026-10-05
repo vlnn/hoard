@@ -84,10 +84,23 @@ def test_results_stop_at_forty(ctx, shelf):
 def test_a_running_update_shows_progress_and_reruns(library, mocker):
     mocker.patch("hoard._worker.running", return_value=True)
     items = api.filter(FakeKind, "ubik", library)
-    assert text.render(items)[0] == "» Updating the index… | 4 found so far", "progress should lead the rows"
+    assert text.render(items)[0] == "» Updating the index… | 4 of 4 checked", "progress should lead the rows, out of the total"
     assert items.rerun == 1, "the filter should rerun while the worker runs"
 
 
 def test_rows_act_with_the_kinds_default_verb(library):
     (item,) = api.filter(FakeKind, "ubik", library).rows
     assert item.verb == "open", "a row should carry the kind's default verb"
+
+
+def test_an_update_still_counting_its_files_says_so(library, mocker):
+    from hoard import _db
+
+    mocker.patch("hoard._worker.running", return_value=True)
+    con = _db.connect(_db.path_for(FakeKind.name, library.data))
+    _db.set_meta(con, "update_total", "")
+    con.commit()
+    con.close()
+    assert text.render(api.filter(FakeKind, "ubik", library))[0] == "» Updating the index… | counting files", (
+        "before the total is known the row should say it is counting"
+    )

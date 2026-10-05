@@ -23,7 +23,7 @@ def filter(kind: Kind, typed: str, ctx: Optional[Context] = None) -> Items:
         rows = _commands.rows_for(con, kind, ctx, typed)
         if not _worker.running(ctx):
             return Items(rows)
-        return Items((_rows.updating(_commands.found_so_far(con)),) + rows, rerun=1)
+        return Items((_rows.updating(*_commands.progress(con)),) + rows, rerun=1)
     finally:
         con.close()
 
