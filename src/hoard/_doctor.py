@@ -75,8 +75,10 @@ def folder_check(name: str, path: str) -> Check:
 def storage_checks(storage: Storage, ctx: Context) -> list:
     name = f"storage {storage.name}"
     roots = storage.roots(ctx)
+    setting = getattr(storage.roots, "setting", "")
+    if not roots and setting and ctx.setting(setting).strip():
+        return [Check(name, f"no folders yet under {setting}", "ok")]
     if not roots:
-        setting = getattr(storage.roots, "setting", "")
         return [Check(name, f"no folder configured ({setting})", "warn")]
     return [
         Check(name, f"{root} mounted", "ok") if storage.mounted(root) else Check(name, f"{root} not mounted", "warn")

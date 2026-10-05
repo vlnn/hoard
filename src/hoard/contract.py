@@ -39,6 +39,7 @@ class Sighting(NamedTuple):
 class Found(NamedTuple):
     entity: Entity
     sightings: tuple
+    tags: tuple = ()
 
     @property
     def storages(self) -> tuple:

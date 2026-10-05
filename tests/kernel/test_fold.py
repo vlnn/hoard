@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import os
+from typing import NamedTuple
 
 import pytest
 
 from hoard import api
+from hoard.contract import Storage
 from hoard.items import Mod
 from hoard.render import text
 from hoard.testing import FakeKind
-from hoard.testing.fake import write_note
+from hoard.testing.fake import read_note, write_note
 
 SATCHEL_FIRST = FakeKind._replace(storages=tuple(reversed(FakeKind.storages)))
 
@@ -98,3 +100,35 @@ def test_an_empty_index_explains_missing_folders(context_with, shelf, satchel, m
     assert lines == [expected.format(shelf=shelf), "» Index is empty | ↩ to update the index"], (
         "an empty index should say which folder is missing before offering to update"
     )
+
+
+class nothing_under(NamedTuple):
+    setting: str
+
+    def __call__(self, ctx) -> list:
+        return []
+
+
+def test_a_set_storage_without_folders_yet_is_not_reported_as_unset(context_with, shelf, satchel):
+    shelf.mkdir()
+    satchel.mkdir()
+    kind = FakeKind._replace(storages=(*FakeKind.storages, Storage("pocket", nothing_under("fake_shelf"), read_note)))
+    lines = text.render(api.filter(kind, "", context_with(fake_shelf=str(shelf), fake_satchel=str(satchel))))
+    assert lines == ["» Index is empty | ↩ to update the index"], (
+        "a storage whose setting is set but yields no folders yet should not ask for the setting"
+    )
+
+
+@pytest.mark.parametrize(
+    "config, status, value",
+    [
+        ({"fake_shelf": "somewhere"}, "ok", "no folders yet under fake_shelf"),
+        ({}, "warn", "no folder configured (fake_shelf)"),
+    ],
+)
+def test_doctor_tells_an_unset_storage_from_one_without_folders_yet(context_with, config, status, value):
+    from hoard import _doctor
+
+    ctx = context_with(**config)
+    (check,) = _doctor.storage_checks(Storage("pocket", nothing_under("fake_shelf"), read_note), ctx)
+    assert (check.status, check.value) == (status, value), f"doctor should say {value!r} as {status}"

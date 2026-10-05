@@ -197,11 +197,22 @@ def record_state(con: sqlite3.Connection, storage: str, mounted: bool) -> None:
     )
 
 
+def unrooted(con: sqlite3.Connection, storage: str, configured: list) -> list:
+    rows = con.execute("SELECT locator FROM sightings WHERE storage = ? AND locator IS NOT NULL", (storage,))
+    return [(storage, locator) for (locator,) in rows if not any(_fold.under(locator, root) for root in configured)]
+
+
+def forget_unrooted(con: sqlite3.Connection, storage: str, configured: list) -> None:
+    con.executemany("DELETE FROM sightings WHERE storage = ? AND locator = ?", unrooted(con, storage, configured))
+
+
 def update_storage(run: Run, storage: Storage) -> None:
     run.start_storage()
-    roots = [root for root in storage.roots(run.ctx) if storage.mounted(root)]
+    configured = list(storage.roots(run.ctx))
+    roots = [root for root in configured if storage.mounted(root)]
     for root in roots:
         update_root(run, storage, root)
+    forget_unrooted(run.con, storage.name, configured)
     record_state(run.con, storage.name, bool(roots))
     run.on_progress(run.found)
 
