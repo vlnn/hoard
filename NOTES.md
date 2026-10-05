@@ -151,3 +151,15 @@ look like.
 - `LocalVectors.vector` took `found` alone in 1.0; 1.1.0 passes `(found, ctx)`, and 1.2.0 does the
   same for derived producers. Pictures is the only user of either, so these are minor versions
   rather than 2.0.
+
+## 1.3.0: what kobold needed
+
+Kobold, the first kind outside this repository, is the reason for every change in this release:
+
+- `Found.tags`: kinds read an entity's tags, so a tag can decide where a file belongs.
+- Plan steps resolve paths before checking them against the root, so `..` and symlinks cannot
+  move files outside it; a failing step is skipped and counted; undo never overwrites a file that
+  took the old name, except the same file after a case-only rename on a case-insensitive disk.
+- Update forgets what it saw under a root no longer configured, and asks for a storage's setting
+  only when the setting is empty.
+- The running-update row reads "N of M checked", the total counted before the first file is read.
