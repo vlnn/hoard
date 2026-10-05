@@ -113,16 +113,16 @@ def test_undo_goes_on_after_a_change_it_cannot_restore(kernel_ctx, shelf):
 
 
 @pytest.mark.parametrize("old_name_holds, restorable", [("the same file", True), ("another file", False), ("nothing", True)])
-def test_undo_restores_a_case_only_rename_where_the_old_name_is_the_same_file(tmp_path, old_name_holds, restorable):
+def test_undo_restores_unless_the_old_name_holds_another_file(tmp_path, old_name_holds, restorable):
     moved = tmp_path / "Dune.note"
     moved.write_text("dune")
-    old = tmp_path / "dune.note"
+    old = tmp_path / "draft.note"
     if old_name_holds == "the same file":
         os.link(moved, old)
     if old_name_holds == "another file":
         old.write_text("downloaded again")
     change = Change("id", "move", str(old), str(moved))
     assert _plan.restorable(change) is restorable, (
-        f"with {old_name_holds} at the old name, as a case-insensitive disk shows a case-only rename, undo should "
-        + ("restore" if restorable else "keep the file where it is")
+        f"with {old_name_holds} at the old name undo should "
+        + ("restore, as after a case-only rename on a case-insensitive disk" if restorable else "keep the file where it is")
     )
