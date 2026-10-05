@@ -32,7 +32,7 @@ The kernel's own files (database, cache, lock, log, icons) are not on this list;
 **Contract**
 - Records are `typing.NamedTuple`, not dataclasses: importing `dataclasses` pulls in `inspect` and
   cost more than starting the interpreter. `test_imports` bans both on the keystroke path.
-- Kinds receive `Found(entity, sightings)`: verbs, `default_verb`, `Command.keep`, `lint` and
+- Kinds receive `Found(entity, sightings, tags)`: verbs, `default_verb`, `Command.keep`, `lint` and
   derived producers all get it. Sightings come in the kind's storage order and say whether they are
   reachable; `nearest`, `on()` and `locator_in()` are conveniences over that.
 - `Context` carries `cache` and `roots` (every storage's folders) besides `data`, `config` and

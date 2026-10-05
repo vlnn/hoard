@@ -10,6 +10,7 @@ from hoard.contract import Context, Entity, Found, Kind, Sighting
 CHUNK = 500
 WHOLE_TABLE = 2000
 SIGHTINGS = "SELECT id, storage, locator, mtime, size FROM sightings"
+TAGS = "SELECT id, tag FROM tags"
 
 
 class Row(NamedTuple):
@@ -38,18 +39,25 @@ def chunks(items: list, size: int = CHUNK):
         yield items[start : start + size]
 
 
-def sighting_rows(con: sqlite3.Connection, ids: list):
+def rows_for(con: sqlite3.Connection, query: str, ids: list):
     if len(ids) > WHOLE_TABLE:
         wanted = set(ids)
-        return (row for row in con.execute(SIGHTINGS) if row[0] in wanted)
-    return (row for chunk in chunks(ids) for row in con.execute(f"{SIGHTINGS} WHERE id IN ({','.join('?' * len(chunk))})", chunk))
+        return (row for row in con.execute(query) if row[0] in wanted)
+    return (row for chunk in chunks(ids) for row in con.execute(f"{query} WHERE id IN ({','.join('?' * len(chunk))})", chunk))
 
 
 def sightings_of(con: sqlite3.Connection, ids: list) -> dict:
     found = {}
-    for row in sighting_rows(con, ids):
+    for row in rows_for(con, SIGHTINGS, ids):
         found.setdefault(row[0], []).append(row)
     return found
+
+
+def tags_of(con: sqlite3.Connection, ids: list) -> dict:
+    found = {}
+    for entity_id, tag in rows_for(con, TAGS, ids):
+        found.setdefault(entity_id, []).append(tag)
+    return {entity_id: tuple(sorted(tags)) for entity_id, tags in found.items()}
 
 
 def sighting(row: tuple, reach: dict) -> Sighting:
@@ -66,10 +74,15 @@ def in_kind_order(order: dict, rows: list, reach: dict) -> tuple:
 def fold(con: sqlite3.Connection, kind: Kind, ctx: Context, entity_rows: list) -> list:
     reach = prefixes(mounted_roots(kind, ctx))
     order = {storage.name: n for n, storage in enumerate(kind.storages)}
-    sightings = sightings_of(con, [row[0] for row in entity_rows])
+    ids = [row[0] for row in entity_rows]
+    sightings, tags = sightings_of(con, ids), tags_of(con, ids)
     return [
         Row(
-            Found(Entity(entity_id, title, tuple(json.loads(fields_json))), in_kind_order(order, sightings.get(entity_id, []), reach)),
+            Found(
+                Entity(entity_id, title, tuple(json.loads(fields_json))),
+                in_kind_order(order, sightings.get(entity_id, []), reach),
+                tags.get(entity_id, ()),
+            ),
             icon,
         )
         for entity_id, title, fields_json, icon in entity_rows

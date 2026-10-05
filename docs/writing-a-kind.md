@@ -113,7 +113,8 @@ is not mounted keeps its entities in the index; their rows fall back to the next
 ## 5. What ↩ does: `default_verb` and verbs
 
 Everything hoard hands a kind about an entity arrives as a `Found`: the entity plus every
-`Sighting(storage, locator, mtime, size, reachable)`, in storage order.
+`Sighting(storage, locator, mtime, size, reachable)`, in storage order. `found.tags` holds its tags,
+sorted, set by hand or accepted from the model, so verbs and `lint` can act on them.
 
 ```python
 def default_verb(found: Found) -> str:
