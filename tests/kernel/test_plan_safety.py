@@ -5,7 +5,7 @@ import os
 import pytest
 
 from hoard import _plan, api
-from hoard.contract import Step
+from hoard.contract import Change, Step
 from hoard.testing import FakeKind
 from hoard.testing.fake import write_note
 
@@ -110,3 +110,19 @@ def test_undo_goes_on_after_a_change_it_cannot_restore(kernel_ctx, shelf):
     os.remove(shelf / "Ubik.note")
     _plan.undo_changes(changes, kernel_ctx)
     assert os.path.exists(first), "a missing file in one change should not stop the others from coming back"
+
+
+@pytest.mark.parametrize("old_name_holds, restorable", [("the same file", True), ("another file", False), ("nothing", True)])
+def test_undo_restores_a_case_only_rename_where_the_old_name_is_the_same_file(tmp_path, old_name_holds, restorable):
+    moved = tmp_path / "Dune.note"
+    moved.write_text("dune")
+    old = tmp_path / "dune.note"
+    if old_name_holds == "the same file":
+        os.link(moved, old)
+    if old_name_holds == "another file":
+        old.write_text("downloaded again")
+    change = Change("id", "move", str(old), str(moved))
+    assert _plan.restorable(change) is restorable, (
+        f"with {old_name_holds} at the old name, as a case-insensitive disk shows a case-only rename, undo should "
+        + ("restore" if restorable else "keep the file where it is")
+    )

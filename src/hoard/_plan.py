@@ -90,7 +90,7 @@ def attempted(step: Step, ctx: Context) -> Optional[Change]:
 
 
 def restorable(change: Change) -> bool:
-    return os.path.lexists(change.after) and not os.path.lexists(change.before)
+    return os.path.lexists(change.after) and not blocked(change.after, change.before)
 
 
 def restore(change: Change, ctx: Context) -> None:
