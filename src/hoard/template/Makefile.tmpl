@@ -1,4 +1,6 @@
 SYSTEM_PYTHON ?= /usr/bin/python3
+BUILD_PYTHON ?= 3.13
+BUILD = uv run --python $(BUILD_PYTHON) python -m hoard.build
 
 .PHONY: test test-system build check link doctor ci
 
@@ -9,19 +11,19 @@ test-system:
 	uv run --isolated --python $(SYSTEM_PYTHON) pytest
 
 build:
-	uv run python -m hoard.build
+	$(BUILD)
 
 check:
-	uv run python -m hoard.build --check
+	$(BUILD) --check
 
 link:
-	uv run python -m hoard.build --link
+	$(BUILD) --link
 
 doctor:
-	cd "$$(uv run python -m hoard.build --link)" && $(SYSTEM_PYTHON) hoard.py doctor
+	cd "$$$$($(BUILD) --link)" && $(SYSTEM_PYTHON) hoard.py doctor
 
 ci:
 	rm -rf .ci-clone
 	git clone --quiet . .ci-clone
-	cd .ci-clone && uv sync --quiet && uv run pytest -q && uv run python -m hoard.build --check
+	cd .ci-clone && uv sync --quiet && uv run pytest -q && $(BUILD) --check
 	rm -rf .ci-clone
