@@ -215,31 +215,34 @@ KIND = Kind(
   a percentage. With no words, `like` starts from `last_opened(ctx)` if the kind supplies it, else from
   the newest entity. Set `like=None` to turn it off.
 
-### Like without a model: `LocalVectors`
+### Like without a model server: `LocalVectors`
 
-When similarity is a matter of metadata rather than meaning, compute the numbers yourself:
+When the kind can compute similarity itself, hand hoard the numbers:
 
 ```python
 KIND = Kind(
     ...,
-    like=LocalVectors("metadata", lazy("pictures.features", "vector")),
+    like=LocalVectors(f"vision-darwin{DARWIN}", lazy("pictures.vision", "vector")),
 )
 ```
 
-`vector(found)` returns a sequence of floats, the same length for every entity. Update calls it
-once per entity that has no vector yet, in the background, and stores it scaled to unit length, so
-`like` works with no server set and never offers to embed. If it raises, that entity is left out
-and the error goes to the worker log. Change the name when you change what the vector means; the
-old vectors are then ignored and the next update makes new ones.
+`vector(found, ctx)` returns a sequence of floats, the same length for every entity. Update calls
+it once per entity that has no vector yet, in the background, and stores it scaled to unit
+length, so `like` works with no server set and never offers to embed. If it raises, that entity
+is left out and the error goes to the worker log. `ctx` is there for whatever the kind needs:
+`ctx.cache` for something built once, `ctx.setting(...)` for its own settings.
 
-Similarity is the cosine between vectors, so give each part of the metadata its own block and
-scale the blocks by how much they should count. Hoard Pictures is the worked example: time and
-place as sines and cosines over many wavelengths (near in time means most of them agree), camera,
-lens and folder hashed into one-hot buckets with `zlib.crc32` (Python's `hash` changes every
-process), shape as one-hot. A missing value is a block of zeros, which neither helps nor hurts.
+The name says what the numbers mean. Change it when that changes and the old vectors are ignored;
+the next update makes new ones. Hoard Pictures puts the macOS major release in the name, because a
+new macOS may bring a new Vision feature print that cannot be compared with the old one.
+
+Hoard Pictures is the worked example: a small Swift program, shipped as source and compiled into
+`ctx.cache` with the Command Line Tools on first use, stays running for the whole update and
+answers one picture path per line with Apple Vision's image feature print. Nothing leaves the Mac.
 
 `like` shortlists by a 128-bit signature of each vector and scores the shortlist exactly, so it
-stays a keystroke over tens of thousands of entities; vectors of a few hundred numbers are plenty.
+stays a keystroke over tens of thousands of entities, whether vectors have a few hundred numbers
+or two thousand.
 
 `evidence(entity)` is what every model sees, so make it the title and fields a person would use to
 recognise the thing, plus a short excerpt. `python3 -m hoard books ask name --dry-run` prints exactly

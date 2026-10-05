@@ -32,9 +32,9 @@ def model_key(con: sqlite3.Connection, kind: Kind) -> str:
     return _models.model_of(con, "embeddings") or DEFAULT_MODEL
 
 
-def local_vector(kind: Kind, found):
+def local_vector(kind: Kind, found, ctx: Context):
     try:
-        return array("f", kind.like.vector(found))
+        return array("f", kind.like.vector(found, ctx))
     except Exception as error:
         print(f"like {kind.like.name}: {found.entity.title}: {error!r}", file=sys.stderr)
         return None
@@ -43,7 +43,7 @@ def local_vector(kind: Kind, found):
 def run_local(con: sqlite3.Connection, kind: Kind, ctx: Context) -> int:
     key, made = model_key(con, kind), 0
     for row in _fold.fold(con, kind, ctx, _vectors.without_vector(con, key)):
-        vector = local_vector(kind, row.found)
+        vector = local_vector(kind, row.found, ctx)
         if vector is None:
             continue
         _vectors.store(con, key, row.found.entity.id, _vectors.normalized(vector))

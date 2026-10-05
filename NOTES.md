@@ -102,6 +102,8 @@ The kernel's own files (database, cache, lock, log, icons) are not on this list;
 - **`osascript` may ask once for permission** to control Alfred; the picker and ⌃↩ need it.
 - **Pictures in Alfred:** a jpg or png path as the row icon shows the picture; whether Alfred draws
   an svg icon is unconfirmed.
+- **Vision on the Mac:** the first `pi update` compiles the helper with `xcrun swiftc` (Command Line
+  Tools); `make test` there runs the one real-Vision test. Time per picture is still to measure.
 - **Phase 2 exit on a real library:** `like` gives sensible neighbours with your embeddings model,
   tag suggestions are accepted in a batch and undone, and `bk` is as fast as before.
 
@@ -127,17 +129,22 @@ The kernel's own files (database, cache, lock, log, icons) are not on this list;
 ## Phase 3: Pictures
 
 The plan's Phases 3–5 were replaced by one kind, `hoard-pictures` (keyword `pi`): every jpg, jpeg,
-png and svg under the folders in its "Picture folders" setting, and similar pictures by metadata.
+png and svg under the folders in its "Picture folders" setting, and similar pictures by what they
+look like.
 
 | Item | State |
 | --- | --- |
 | 3a `LocalVectors(name, vector)`: like without a model server, vectors made by update | done |
 | 3a like ranked when asked from vector signatures, update linear | done |
-| 3b readers on the standard library: JPEG EXIF (both byte orders, orientation, GPS), PNG `IHDR`, `eXIf`, `tEXt`, `iTXt`, SVG size, `viewBox`, `title`, `desc` | done |
-| 3b feature vector: time and place over many wavelengths, camera, lens and folder buckets, shape | done |
+| 3a `vector(found, ctx)` receives the context (1.1.0) | done |
+| 3b readers on the standard library: JPEG EXIF (both byte orders, orientation, GPS), PNG `IHDR`, `eXIf`, `tEXt`, `iTXt`, SVG size, `viewBox`, `title`, `desc`; all searchable | done |
+| 3b like from Apple Vision feature prints, through a Swift helper compiled on first use | done; first compile and timing on the Mac |
 | 3b each picture is its own row icon | done; Alfred to confirm |
 | 3c `docs/writing-a-kind.md` on `LocalVectors`, this file, `hoard 1.0.0` | done |
 
-Measured here: an update over 3 000 jpegs takes 3.6 s, `like` among them 21 ms. Pictures has no
-verbs or plan; the kernel's open and reveal are enough. The folder assumptions above all hold for
-it, which is why it could be written without touching the walker.
+**Departures and limits**
+- Vision cannot read SVG, so SVGs are searchable but have no vector and never show in `like`.
+- The Swift source cannot be compiled or run on Linux. The tests there drive a stand-in helper that
+  speaks the same line protocol; one test, skipped off macOS, runs the real one.
+- `LocalVectors.vector` took `found` alone in 1.0; 1.1.0 passes `(found, ctx)`. Pictures was its
+  only user, so the change is a minor version rather than 2.0.

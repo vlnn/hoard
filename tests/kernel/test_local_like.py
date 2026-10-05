@@ -11,7 +11,7 @@ from hoard.testing.fake import write_note
 AUTHORS = ("Herbert", "Dick", "Le Guin")
 
 
-def by_author(found) -> list:
+def by_author(found, ctx) -> list:
     author = found.entity.fields[0]
     return [1.0 if name in author else 0.0 for name in AUTHORS] + [0.05]
 
@@ -48,11 +48,19 @@ def test_local_vectors_are_made_once(library, mocker):
     vector.assert_not_called()
 
 
+def test_the_vector_is_given_the_context(library, mocker):
+    vector = mocker.Mock(side_effect=by_author)
+    api.update(FakeKind._replace(like=LocalVectors("authors", vector)), library)
+    assert {call.args[1].cache for call in vector.call_args_list} == {library.cache}, (
+        "a kind should get the context, e.g. to find its cache folder"
+    )
+
+
 def test_a_failing_vector_skips_that_entity(library):
-    def fragile(found):
+    def fragile(found, ctx):
         if found.entity.title == "Ubik":
             raise ValueError("no metadata")
-        return by_author(found)
+        return by_author(found, ctx)
 
     kind = FakeKind._replace(like=LocalVectors("authors", fragile))
     api.update(kind, library)

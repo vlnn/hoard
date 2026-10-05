@@ -126,7 +126,7 @@ class TextEmbedding(NamedTuple):
 
 class LocalVectors(NamedTuple):
     name: str
-    vector: Callable[[Found], Sequence[float]]
+    vector: Callable[[Found, Context], Sequence[float]]
 
 
 def no_icon(entity: Entity) -> Optional[str]:
