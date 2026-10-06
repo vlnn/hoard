@@ -125,5 +125,5 @@ def tag_rows(con, kind: Kind, ctx: Context, words: list) -> tuple:
     total = _search.count(con, typed, untagged=True)
     if not total:
         return (Head("none", "Nothing to tag"),)
-    rows = _fold.fold(con, kind, ctx, _search.search(con, typed, untagged=True))
+    rows = _fold.fold(con, kind, ctx, _search.search(con, typed, untagged=True, order=_search.order_of(kind)))
     return tuple(tag_heads(con, kind, ctx, words, total)) + tuple(tag_item(con, kind, ctx, row) for row in rows)

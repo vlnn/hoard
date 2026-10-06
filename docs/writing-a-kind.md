@@ -63,7 +63,7 @@ KIND = Kind(
 ```
 
 Only `name`, `keyword`, `storages`, `fields` and `evidence` are required. With just those, a kind
-already has search, a listing with covered entities first and newest first within each, ⇧↩ open, ⌥↩ reveal, `update`, `rnd` and `stats`.
+already has search, newest-first listing, ⇧↩ open, ⌥↩ reveal, `update`, `rnd` and `stats`.
 
 **Keep the module light.** Alfred starts a fresh Python on every keystroke, and the kind's
 `__init__` is imported each time. Anything that pulls in `zipfile`, `xml`, `urllib`, `shutil` or
@@ -85,6 +85,8 @@ Entity(id, title, fields=(authors, series, year, fmt, path), text=excerpt, cover
 - **`text`** is an excerpt for `evidence` (Books keeps the first 2 000 characters).
 - **`cover`** is image bytes, or `b""`. hoard caches it by id; without a cover, `Kind.icon(entity)`
   may return a path relative to the bundle, such as `icons/epub.png` from `workflow/icons/`.
+  Set `Kind(pictured_first=True)` to list entities with a picture (cover or icon) before those
+  without, newest first within each.
 
 A reader should never raise on a bad file. Books falls back to the file name as the title, so a
 broken book is still found and can be fixed by hand. If a reader does raise, hoard skips the file,

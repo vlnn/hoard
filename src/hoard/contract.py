@@ -155,6 +155,7 @@ class _KindRecord(NamedTuple):
     tags: Optional[Callable[[Context], Sequence[str]]] = None
     like: Optional[Any] = TextEmbedding()
     last_opened: Optional[Callable[[Context], Optional[str]]] = None
+    pictured_first: bool = False
 
 
 class Kind(_KindRecord):
@@ -192,6 +193,7 @@ def problems(kind: Kind) -> list:
         (all(isinstance(f, str) for f in kind.fields), "field labels should be strings"),
         (callable(kind.evidence), "evidence should be callable"),
         (callable(kind.icon), "icon should be callable"),
+        (isinstance(kind.pictured_first, bool), "pictured_first should be a bool"),
         (callable(kind.default_verb), "default_verb should be callable"),
         (kind.lint is None or callable(kind.lint), "lint should be callable or None"),
         (all(isinstance(v, Verb) for v in kind.verbs.values()), "verbs should be Verb records"),

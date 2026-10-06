@@ -83,6 +83,7 @@ def test_a_kind_needs_only_storages_fields_and_evidence():
         ({"derive": {"ocr": "not callable"}}, "derived producers should be callable"),
         ({"nameable": ("publisher",)}, "nameable should name the kind's fields"),
         ({"tags": ("scifi",)}, "tags should be a callable taking the context"),
+        ({"pictured_first": "yes"}, "pictured_first should be a bool"),
         ({"derive": {"OCR text": str}}, "derived keys should be lowercase identifiers"),
         ({"labels": {"one": 1}}, "labels should be strings"),
         ({"commands": {"loose": Command("Open", "open", off=("device",))}}, "off should name the kind's storages"),

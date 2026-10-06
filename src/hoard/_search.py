@@ -3,15 +3,16 @@ from __future__ import annotations
 import sqlite3
 from typing import Optional
 
-from hoard._db import COVERED_FIRST
-
 LIMIT = 40
 EVERYTHING = -1
+
+NEWEST = "mtime DESC"
+PICTURED_FIRST = "icon IS NULL, mtime DESC"
 
 ENTITIES = """
 SELECT e.id, e.title, e.fields_json, e.icon
 FROM ({chosen}) chosen JOIN entities e ON e.rowid = chosen.rowid
-ORDER BY e.icon IS NULL, e.mtime DESC
+ORDER BY {order}
 """
 
 MATCHING = "rowid IN (SELECT rowid FROM fts WHERE fts MATCH ?)"
@@ -46,8 +47,12 @@ def is_empty(con: sqlite3.Connection) -> bool:
     return con.execute("SELECT 1 FROM entities LIMIT 1").fetchone() is None
 
 
-def chosen(con: sqlite3.Connection, chooser: str, *parameters) -> list:
-    return con.execute(ENTITIES.format(chosen=chooser), parameters).fetchall()
+def order_of(kind) -> str:
+    return PICTURED_FIRST if kind.pictured_first else NEWEST
+
+
+def chosen(con: sqlite3.Connection, chooser: str, *parameters, order: str = NEWEST) -> list:
+    return con.execute(ENTITIES.format(chosen=chooser, order=order), parameters).fetchall()
 
 
 def where(typed: str, on=(), off=(), untagged: bool = False) -> Optional[tuple]:
@@ -69,12 +74,12 @@ def where(typed: str, on=(), off=(), untagged: bool = False) -> Optional[tuple]:
     return (" WHERE " + " AND ".join(clauses) if clauses else "", tuple(parameters))
 
 
-def search(con: sqlite3.Connection, typed: str, limit: int = LIMIT, on=(), off=(), untagged: bool = False) -> list:
+def search(con: sqlite3.Connection, typed: str, limit: int = LIMIT, on=(), off=(), untagged: bool = False, order: str = NEWEST) -> list:
     narrowed = where(typed, on, off, untagged)
     if narrowed is None:
         return []
     clause, parameters = narrowed
-    return chosen(con, f"SELECT rowid FROM entities{clause} ORDER BY {COVERED_FIRST} LIMIT ?", *parameters, limit)
+    return chosen(con, f"SELECT rowid FROM entities{clause} ORDER BY {order} LIMIT ?", *parameters, limit, order=order)
 
 
 def count(con: sqlite3.Connection, typed: str, on=(), off=(), untagged: bool = False) -> int:
@@ -85,12 +90,12 @@ def count(con: sqlite3.Connection, typed: str, on=(), off=(), untagged: bool = F
     return con.execute(f"SELECT count(*) FROM entities{clause}", parameters).fetchone()[0]
 
 
-def ids(con: sqlite3.Connection, typed: str, on=(), off=(), untagged: bool = False) -> list:
+def ids(con: sqlite3.Connection, typed: str, on=(), off=(), untagged: bool = False, order: str = NEWEST) -> list:
     narrowed = where(typed, on, off, untagged)
     if narrowed is None:
         return []
     clause, parameters = narrowed
-    return [row[0] for row in con.execute(f"SELECT id FROM entities{clause} ORDER BY {COVERED_FIRST}", parameters)]
+    return [row[0] for row in con.execute(f"SELECT id FROM entities{clause} ORDER BY {order}", parameters)]
 
 
 def random_entities(con: sqlite3.Connection, limit: int) -> list:

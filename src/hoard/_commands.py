@@ -72,7 +72,7 @@ def stats_rows(con, kind, ctx, words) -> tuple:
 def plan_for(con, kind: Kind, ctx: Context, typed: str) -> list:
     if kind.lint is None:
         return []
-    rows = _fold.fold(con, kind, ctx, _search.search(con, typed, _search.EVERYTHING))
+    rows = _fold.fold(con, kind, ctx, _search.search(con, typed, _search.EVERYTHING, order=_search.order_of(kind)))
     steps = list(kind.lint([row.found for row in rows], ctx).steps)
     return [step for step in steps if step.id] if typed.strip() else steps
 
@@ -107,13 +107,14 @@ def batch_head(kind: Kind, batch: str, command: Command, total: int) -> Head:
 
 
 def kept_rows(con, kind: Kind, ctx: Context, command: Command, typed: str) -> list:
-    every = _search.search(con, typed, _search.EVERYTHING, command.on, command.off)
+    every = _search.search(con, typed, _search.EVERYTHING, command.on, command.off, order=_search.order_of(kind))
     return [row for row in _fold.fold(con, kind, ctx, every) if command.keep(row.found)]
 
 
 def shown_and_total(con, kind: Kind, ctx: Context, command: Command, typed: str) -> tuple:
     if in_sql_only(command):
-        shown = _fold.fold(con, kind, ctx, _search.search(con, typed, _search.LIMIT, command.on, command.off))
+        found = _search.search(con, typed, _search.LIMIT, command.on, command.off, order=_search.order_of(kind))
+        shown = _fold.fold(con, kind, ctx, found)
         return shown, _search.count(con, typed, command.on, command.off)
     kept = kept_rows(con, kind, ctx, command, typed)
     return kept[: _search.LIMIT], len(kept)
@@ -134,12 +135,12 @@ def batch_ids(con, kind: Kind, ctx: Context, batch: str) -> list:
     if command is None:
         return []
     if in_sql_only(command):
-        return _search.ids(con, typed, command.on, command.off)
+        return _search.ids(con, typed, command.on, command.off, order=_search.order_of(kind))
     return [row.found.entity.id for row in kept_rows(con, kind, ctx, command, typed)]
 
 
 def search_rows(con, kind: Kind, ctx: Context, typed: str) -> tuple:
-    found = items_for(con, kind, ctx, _search.search(con, typed))
+    found = items_for(con, kind, ctx, _search.search(con, typed, order=_search.order_of(kind)))
     return found or (_rows.no_match(typed),)
 
 

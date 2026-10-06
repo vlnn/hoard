@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from hoard import _db
+from hoard import _db, _search
 
 
 def table_names(con):
@@ -197,7 +197,7 @@ def test_a_busy_database_still_connects_and_switches_to_wal_later(tmp_path):
 
 
 def test_the_covered_first_order_is_served_by_an_index(tmp_db):
-    plan = " ".join(row[-1] for row in tmp_db.execute(f"EXPLAIN QUERY PLAN SELECT rowid FROM entities ORDER BY {_db.COVERED_FIRST} LIMIT 40"))
-    assert "entities_covered_newest" in plan and "TEMP B-TREE" not in plan, (
-        "listing covered books first, newest first, should read an index rather than sort the table"
+    plan = " ".join(row[-1] for row in tmp_db.execute(f"EXPLAIN QUERY PLAN SELECT rowid FROM entities ORDER BY {_search.PICTURED_FIRST} LIMIT 40"))
+    assert "entities_pictured_newest" in plan and "TEMP B-TREE" not in plan, (
+        "listing pictured entities first, newest first, should read an index rather than sort the table"
     )
