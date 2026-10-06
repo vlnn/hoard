@@ -163,6 +163,9 @@ at 10 000 entities. The rows come under a "Copy all N" row that runs the verb on
 
 `update`, `undo`, `rnd`, `stats` and `fix` belong to hoard.
 
+Two or more letters of a command, with nothing after them, put a row per matching command first
+(`bk up` → *bk update*); ↩ or ⇥ on it completes the word, and the search for the letters follows.
+
 ## 7. Plans: `fix`
 
 `lint(founds, ctx)` returns a `Plan` of `Step(verb, id, before, after, reason)`. A kind proposes; hoard

@@ -45,6 +45,8 @@ def head_json(row: Head) -> dict:
     }
     if row.verb is not None:
         document["variables"] = {"verb": row.verb}
+    if row.complete:
+        document["autocomplete"] = row.complete
     return document
 
 

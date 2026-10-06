@@ -164,24 +164,89 @@ def model_rows(con, kind, ctx, words) -> tuple:
     return tuple(row for role in _models.configured(ctx) for row in role_rows(con, ctx, role))
 
 
-def rows_for(con: sqlite3.Connection, kind: Kind, ctx: Context, typed: str) -> tuple:
+def name_rows(con, kind, ctx, words) -> tuple:
+    from hoard import _suggest
+
+    return _suggest.name_rows(con, kind, ctx, words)
+
+
+def tag_rows(con, kind, ctx, words) -> tuple:
+    from hoard import _suggest
+
+    return _suggest.tag_rows(con, kind, ctx, words)
+
+
+def like_rows(con, kind, ctx, words) -> tuple:
+    from hoard import _like
+
+    return _like.like_rows(con, kind, ctx, words)
+
+
+def always(con, kind, ctx) -> bool:
+    return True
+
+
+def models_configured(con, kind, ctx) -> bool:
+    return bool(_models.configured(ctx))
+
+
+def nameable(con, kind, ctx) -> bool:
+    return bool(kind.nameable) and "chat" in _models.configured(ctx) and not _search.is_empty(con)
+
+
+def taggable(con, kind, ctx) -> bool:
+    return bool(kind.tags) and bool(kind.tags(ctx)) and not _search.is_empty(con)
+
+
+def likeable(con, kind, ctx) -> bool:
+    return _rows.likeable(kind, ctx) and not _search.is_empty(con)
+
+
+OPTIONAL_COMMANDS = {
+    "update": (always, update_rows),
+    "model": (models_configured, model_rows),
+    "name": (nameable, name_rows),
+    "tag": (taggable, tag_rows),
+    "like": (likeable, like_rows),
+}
+
+MIN_COMPLETION = 2
+COMPLETES = "↩ to complete"
+
+
+def offers_optional(con, kind: Kind, ctx: Context, word: str) -> bool:
+    offered, _ = OPTIONAL_COMMANDS.get(word, (None, None))
+    return offered is not None and offered(con, kind, ctx)
+
+
+def offers(con, kind: Kind, ctx: Context, word: str) -> bool:
+    return word in KERNEL_COMMANDS or word in kind.commands or offers_optional(con, kind, ctx, word)
+
+
+def command_words(kind: Kind) -> list:
+    return sorted({*OPTIONAL_COMMANDS, *KERNEL_COMMANDS, *kind.commands})
+
+
+def partial_word(typed: str) -> str:
+    return typed.lower() if len(typed) >= MIN_COMPLETION and typed.split() == [typed] else ""
+
+
+def completion_head(kind: Kind, word: str) -> Head:
+    return Head(f"complete:{word}", f"{kind.keyword} {word}", COMPLETES, complete=f"{word} ")
+
+
+def completion_rows(con, kind: Kind, ctx: Context, typed: str) -> tuple:
+    prefix = partial_word(typed)
+    if not prefix or offers(con, kind, ctx, prefix):
+        return ()
+    completed = [word for word in command_words(kind) if word.startswith(prefix) and offers(con, kind, ctx, word)]
+    return tuple(completion_head(kind, word) for word in completed)
+
+
+def command_or_search_rows(con: sqlite3.Connection, kind: Kind, ctx: Context, typed: str) -> tuple:
     word, rest = _search.split_command(typed)
-    if word == "update":
-        return update_rows(con, kind, ctx, rest)
-    if word == "model" and _models.configured(ctx):
-        return model_rows(con, kind, ctx, rest)
-    if word == "name" and kind.nameable and "chat" in _models.configured(ctx) and not _search.is_empty(con):
-        from hoard import _suggest
-
-        return _suggest.name_rows(con, kind, ctx, rest)
-    if word == "tag" and kind.tags and kind.tags(ctx) and not _search.is_empty(con):
-        from hoard import _suggest
-
-        return _suggest.tag_rows(con, kind, ctx, rest)
-    if word == "like" and _rows.likeable(kind, ctx) and not _search.is_empty(con):
-        from hoard import _like
-
-        return _like.like_rows(con, kind, ctx, rest)
+    if offers_optional(con, kind, ctx, word):
+        return OPTIONAL_COMMANDS[word][1](con, kind, ctx, rest)
     if _search.is_empty(con):
         return _rows.empty_index_rows(kind, ctx)
     if word in KERNEL_COMMANDS:
@@ -189,4 +254,8 @@ def rows_for(con: sqlite3.Connection, kind: Kind, ctx: Context, typed: str) -> t
     if word in kind.commands:
         return command_rows(con, kind, ctx, word, rest)
     return search_rows(con, kind, ctx, typed)
+
+
+def rows_for(con: sqlite3.Connection, kind: Kind, ctx: Context, typed: str) -> tuple:
+    return completion_rows(con, kind, ctx, typed) + command_or_search_rows(con, kind, ctx, typed)
 

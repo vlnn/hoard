@@ -95,3 +95,14 @@ def test_alfred_document_carries_every_key():
 
 def test_alfred_omits_rerun_when_nothing_is_running():
     assert "rerun" not in json.loads(alfred.render(Items())), "rerun should only appear while work is in progress"
+
+
+def test_alfred_completion_head_extends_the_query_on_return():
+    document = alfred.document(Items((Head("complete:update", "fk update", "↩ to complete", complete="update "),)))
+    assert document["items"][0] == {
+        "title": "fk update",
+        "subtitle": "↩ to complete",
+        "arg": "head:complete:update",
+        "valid": False,
+        "autocomplete": "update ",
+    }, "a completion head should be invalid with an autocomplete, so ↩ and ⇥ fill the query"

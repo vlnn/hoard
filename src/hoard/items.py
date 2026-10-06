@@ -25,6 +25,7 @@ class Head(NamedTuple):
     subtitle: str = ""
     verb: Optional[str] = None
     arg: str = ""
+    complete: str = ""
 
 
 class Items(NamedTuple):
