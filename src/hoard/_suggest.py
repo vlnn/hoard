@@ -4,12 +4,13 @@ import json
 import sqlite3
 from collections import Counter
 
-from hoard import _answers, _fold, _models, _names, _questions, _rows, _search, _tags
+from hoard import _answers, _fold, _models, _names, _questions, _rows, _search, _standards, _tags
 from hoard.contract import Context, Kind
-from hoard.items import Head, Item
+from hoard.items import Head, Item, Mod
 
 CHOICE = "tagset:"
 EVERY = "#*"
+STANDARD_MOD = Mod("cmd", "pick_standard", "Choose the standard spelling, or keep them apart")
 
 
 def ask_head(con: sqlite3.Connection, kind: Kind, ctx: Context, question: str) -> list:
@@ -127,3 +128,44 @@ def tag_rows(con, kind: Kind, ctx: Context, words: list) -> tuple:
         return (Head("none", "Nothing to tag"),)
     rows = _fold.fold(con, kind, ctx, _search.search(con, typed, untagged=True, order=_search.order_of(kind)))
     return tuple(tag_heads(con, kind, ctx, words, total)) + tuple(tag_item(con, kind, ctx, row) for row in rows)
+
+
+def proposal_item(kind: Kind, found) -> Item:
+    detail = [found.subject, ", ".join(found.shown)] + ([_rows.counted(kind, found.count)] if found.count else [])
+    return Item(f"{_standards.ONE}{found.n}", found.standard, " · ".join(detail), verb="standardize", mods=(STANDARD_MOD,))
+
+
+def nothing_to_standardize() -> tuple:
+    return (Head("none", "Nothing to standardize"),)
+
+
+def spelling_item(found, spelling: str) -> Item:
+    note = "current standard" if spelling == found.standard else ""
+    return Item(_standards.choice_id(found, spelling), spelling, note, verb="standardize")
+
+
+def standard_picker_rows(con: sqlite3.Connection, number: str) -> tuple:
+    found = _standards.proposal(con, number)
+    if found is None:
+        return nothing_to_standardize()
+    head = Head("picker", f"{found.subject}: {found.standard}", "pick the standard spelling")
+    spellings = tuple(spelling_item(found, spelling) for spelling in (found.standard, *found.shown))
+    apart = Item(f"{_standards.ONE}{found.n}", "Keep apart", "these stay different spellings", verb="keep_apart")
+    return (head, *spellings, apart)
+
+
+def std_rows(con, kind: Kind, ctx: Context, words: list) -> tuple:
+    if words and words[0].startswith("#"):
+        return standard_picker_rows(con, words[0][1:])
+    typed = " ".join(words)
+    waiting = _standards.proposals(con, typed)
+    if not waiting:
+        return nothing_to_standardize()
+    head = Head(
+        "accept standards",
+        f"Accept {len(waiting)}",
+        "↩ makes every spelling below standard",
+        verb="standardize",
+        arg=f"{_standards.EVERY}{typed}",
+    )
+    return (head,) + tuple(proposal_item(kind, found) for found in waiting[: _search.LIMIT])

@@ -7,9 +7,27 @@ from typing import Any, Callable, Mapping, NamedTuple, Optional, Sequence
 
 NOTHING = MappingProxyType({})
 KERNEL_VERBS = frozenset(
-    {"open", "reveal", "update", "undo", "apply", "use_model", "ask", "accept", "pick", "set_tag", "accept_tags", "like", "embed"}
+    {
+        "open",
+        "reveal",
+        "update",
+        "undo",
+        "apply",
+        "use_model",
+        "ask",
+        "accept",
+        "pick",
+        "set_tag",
+        "accept_tags",
+        "like",
+        "embed",
+        "standardize",
+        "keep_apart",
+        "pick_standard",
+    }
 )
-KERNEL_COMMANDS = frozenset({"update", "undo", "rnd", "stats", "fix", "model", "name", "tag", "like"})
+KERNEL_COMMANDS = frozenset({"update", "undo", "rnd", "stats", "fix", "model", "name", "tag", "like", "std"})
+TAGS = "tags"
 STEP_VERBS = frozenset({"move", "trash"})
 COMMAND_VERBS = frozenset({"open", "reveal"})
 LABELS = frozenset({"one", "many"})
@@ -62,9 +80,13 @@ class Context(NamedTuple):
     config: Mapping[str, str] = NOTHING
     journal: Optional[Callable[..., Any]] = None
     roots: Mapping[str, tuple] = NOTHING
+    standards: Mapping[str, Mapping[str, str]] = NOTHING
 
     def setting(self, name: str, default: str = "") -> str:
         return self.config.get(name, default)
+
+    def standard(self, subject: str, value: str) -> str:
+        return self.standards.get(subject, NOTHING).get(value, value)
 
     def roots_of(self, storage: str) -> tuple:
         return tuple(self.roots.get(storage, ()))
@@ -125,6 +147,22 @@ class TextEmbedding(NamedTuple):
         return evidence[: self.trim]
 
 
+class Spelling(NamedTuple):
+    value: str
+    count: int = 0
+
+
+class Standard(NamedTuple):
+    standard: str
+    variants: tuple
+    trivial: bool = False
+
+
+class Standardize(NamedTuple):
+    propose: Callable[[Sequence[Spelling], Context], Sequence[Standard]]
+    separator: str = ""
+
+
 class LocalVectors(NamedTuple):
     name: str
     vector: Callable[[Found, Context], Sequence[float]]
@@ -156,6 +194,7 @@ class _KindRecord(NamedTuple):
     like: Optional[Any] = TextEmbedding()
     last_opened: Optional[Callable[[Context], Optional[str]]] = None
     pictured_first: bool = False
+    standards: Mapping[str, Standardize] = NOTHING
 
 
 class Kind(_KindRecord):
@@ -172,6 +211,14 @@ def like_is_valid(like) -> bool:
     if like is None or isinstance(like, TextEmbedding):
         return True
     return isinstance(like, LocalVectors) and bool(like.name) and callable(like.vector)
+
+
+def standard_subjects(kind: Kind) -> set:
+    return {*kind.fields, TAGS}
+
+
+def standardizes(record) -> bool:
+    return isinstance(record, Standardize) and callable(record.propose) and isinstance(record.separator, str)
 
 
 def storage_names(kind: Kind) -> set:
@@ -211,6 +258,9 @@ def problems(kind: Kind) -> list:
         (like_is_valid(kind.like), "like should be TextEmbedding(), LocalVectors(name, vector) or None"),
         (kind.last_opened is None or callable(kind.last_opened), "last_opened should be callable or None"),
         (all(isinstance(value, str) for value in kind.labels.values()), "labels should be strings"),
+        (set(kind.standards) <= standard_subjects(kind), "standards should name the kind's fields or tags"),
+        (all(standardizes(record) for record in kind.standards.values()), "standards should be Standardize records"),
+        (TAGS not in kind.standards or kind.tags is not None, "standard tags need tags"),
     )
     return [message for passed, message in checks if not passed]
 

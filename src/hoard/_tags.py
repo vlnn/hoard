@@ -4,10 +4,10 @@ import sqlite3
 import time
 from typing import NamedTuple, Optional
 
-from hoard import _answers
+from hoard import _answers, _standards
 from hoard._questions import TAG
 from hoard._text import refresh_text
-from hoard.contract import Change
+from hoard.contract import TAGS, Change
 
 
 def tags_of(con: sqlite3.Connection, entity_id: str) -> list:
@@ -25,6 +25,7 @@ def replace(con: sqlite3.Connection, entity_id: str, entries) -> None:
 
 def set_tag(con: sqlite3.Connection, entity_id: str, tag: str, set_by: str) -> Change:
     before = tags_of(con, entity_id)
+    tag = _standards.standard_of(con, TAGS, tag)
     replace(con, entity_id, [(tag, set_by)])
     if set_by == "hand":
         _answers.forget(con, entity_id, TAG)
@@ -49,7 +50,7 @@ def guess(con: sqlite3.Connection, entity_id: str) -> Optional[Guess]:
     (evidence_hash,) = con.execute("SELECT evidence_hash FROM entities WHERE id = ?", (entity_id,)).fetchone()
     answer = _answers.fresh(con, entity_id, TAG, evidence_hash or "")
     tag = str(answer.get("tag") or "") if answer else ""
-    return Guess(tag, float(answer.get("confidence") or 0)) if tag else None
+    return Guess(_standards.standard_of(con, TAGS, tag), float(answer.get("confidence") or 0)) if tag else None
 
 
 def suggestion(con: sqlite3.Connection, entity_id: str) -> Optional[str]:

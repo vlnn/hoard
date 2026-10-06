@@ -11,9 +11,10 @@ def searchable_body(con: sqlite3.Connection, entity_id: str, fields_json: str) -
 
 
 def refresh_text(con: sqlite3.Connection, entity_id: str) -> None:
-    rowid, title, fields_json = con.execute(
-        "SELECT rowid, title, fields_json FROM entities WHERE id = ?", (entity_id,)
-    ).fetchone()
+    row = con.execute("SELECT rowid, title, fields_json FROM entities WHERE id = ?", (entity_id,)).fetchone()
+    if row is None:
+        return
+    rowid, title, fields_json = row
     con.execute("DELETE FROM fts WHERE rowid = ?", (rowid,))
     con.execute(
         "INSERT INTO fts(rowid, id, title, body) VALUES (?, ?, ?, ?)",

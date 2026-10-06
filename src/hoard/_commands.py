@@ -33,7 +33,14 @@ def update_rows(con, kind, ctx, words) -> tuple:
     return (_rows.update_offer(),)
 
 
-KERNEL_LABELS = {"apply": "Fix", "accept": "Accept names", "set_tag": "Tag", "accept_tags": "Accept tags"}
+KERNEL_LABELS = {
+    "apply": "Fix",
+    "accept": "Accept names",
+    "set_tag": "Tag",
+    "accept_tags": "Accept tags",
+    "standardize": "Standardize",
+    "keep_apart": "Keep apart",
+}
 
 
 def verb_label(kind: Kind, verb: str) -> str:
@@ -177,6 +184,12 @@ def tag_rows(con, kind, ctx, words) -> tuple:
     return _suggest.tag_rows(con, kind, ctx, words)
 
 
+def std_rows(con, kind, ctx, words) -> tuple:
+    from hoard import _suggest
+
+    return _suggest.std_rows(con, kind, ctx, words)
+
+
 def like_rows(con, kind, ctx, words) -> tuple:
     from hoard import _like
 
@@ -199,6 +212,10 @@ def taggable(con, kind, ctx) -> bool:
     return bool(kind.tags) and bool(kind.tags(ctx)) and not _search.is_empty(con)
 
 
+def standardizable(con, kind, ctx) -> bool:
+    return bool(kind.standards) and not _search.is_empty(con)
+
+
 def likeable(con, kind, ctx) -> bool:
     return _rows.likeable(kind, ctx) and not _search.is_empty(con)
 
@@ -209,6 +226,7 @@ OPTIONAL_COMMANDS = {
     "name": (nameable, name_rows),
     "tag": (taggable, tag_rows),
     "like": (likeable, like_rows),
+    "std": (standardizable, std_rows),
 }
 
 MIN_COMPLETION = 2

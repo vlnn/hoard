@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from hoard import _commands, _context, _db, _progress, _rows, _worker
+from hoard import _commands, _context, _db, _progress, _rows, _standards, _worker
 from hoard.contract import Context, Kind
 from hoard.items import Items
 
@@ -16,9 +16,14 @@ def open_database(kind: Kind, ctx: Context):
     return _db.connect(_db.path_for(kind.name, ctx.data))
 
 
-def filter(kind: Kind, typed: str, ctx: Optional[Context] = None) -> Items:
+def opened(kind: Kind, ctx: Optional[Context]) -> tuple:
     ctx = context(kind, ctx)
     con = open_database(kind, ctx)
+    return con, _standards.with_standards(con, ctx)
+
+
+def filter(kind: Kind, typed: str, ctx: Optional[Context] = None) -> Items:
+    con, ctx = opened(kind, ctx)
     try:
         rows = _commands.rows_for(con, kind, ctx, typed)
         if not _worker.running(ctx):
@@ -36,10 +41,11 @@ def update(
 ) -> int:
     from hoard import _index
 
-    ctx = context(kind, ctx)
-    con = open_database(kind, ctx)
+    con, ctx = opened(kind, ctx)
     try:
-        return _index.update(con, kind, ctx, on_progress or _index.ignore_progress, full)
+        found = _index.update(con, kind, ctx, on_progress or _index.ignore_progress, full)
+        _standards.refresh(con, kind, ctx)
+        return found
     finally:
         con.close()
 
@@ -47,8 +53,7 @@ def update(
 def act(kind: Kind, verb: str, ids, ctx: Optional[Context] = None) -> str:
     from hoard import _actions
 
-    ctx = context(kind, ctx)
-    con = open_database(kind, ctx)
+    con, ctx = opened(kind, ctx)
     try:
         return _actions.dispatch(con, kind, ctx, verb, ids)
     finally:
@@ -56,8 +61,7 @@ def act(kind: Kind, verb: str, ids, ctx: Optional[Context] = None) -> str:
 
 
 def plan(kind: Kind, typed: str = "", ctx: Optional[Context] = None) -> list:
-    ctx = context(kind, ctx)
-    con = open_database(kind, ctx)
+    con, ctx = opened(kind, ctx)
     try:
         return _commands.plan_for(con, kind, ctx, typed)
     finally:
@@ -67,8 +71,7 @@ def plan(kind: Kind, typed: str = "", ctx: Optional[Context] = None) -> list:
 def ask(kind: Kind, ctx: Optional[Context] = None, questions: Optional[list] = None) -> int:
     from hoard import _ask
 
-    ctx = context(kind, ctx)
-    con = open_database(kind, ctx)
+    con, ctx = opened(kind, ctx)
     try:
         return _ask.run(con, kind, ctx, questions)
     finally:
@@ -78,8 +81,7 @@ def ask(kind: Kind, ctx: Optional[Context] = None, questions: Optional[list] = N
 def embed(kind: Kind, ctx: Optional[Context] = None) -> int:
     from hoard import _embed
 
-    ctx = context(kind, ctx)
-    con = open_database(kind, ctx)
+    con, ctx = opened(kind, ctx)
     try:
         return _embed.run(con, kind, ctx)
     finally:
@@ -89,8 +91,7 @@ def embed(kind: Kind, ctx: Optional[Context] = None) -> int:
 def ask_dry_run(kind: Kind, ctx: Optional[Context] = None, questions: Optional[list] = None) -> list:
     from hoard import _ask
 
-    ctx = context(kind, ctx)
-    con = open_database(kind, ctx)
+    con, ctx = opened(kind, ctx)
     try:
         return _ask.dry_run(con, kind, ctx, questions)
     finally:

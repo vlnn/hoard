@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from hoard.contract import Context, Kind
+from hoard.contract import TAGS, Context, Kind
 
 NAME = "name"
 TAG = "tag"
@@ -14,7 +14,7 @@ def noun(kind: Kind) -> str:
 
 
 def tag_list(kind: Kind, ctx: Context) -> list:
-    return list(kind.tags(ctx)) if kind.tags else []
+    return list(dict.fromkeys(ctx.standard(TAGS, tag) for tag in kind.tags(ctx))) if kind.tags else []
 
 
 def enabled(kind: Kind, ctx: Context) -> list:

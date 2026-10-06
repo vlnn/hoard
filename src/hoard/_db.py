@@ -110,10 +110,28 @@ PICTURED_NEWEST = """
 CREATE INDEX entities_pictured_newest ON entities(icon IS NULL, mtime DESC);
 """
 
-MIGRATIONS = (SCHEMA_V1, JOURNAL_KIND_OF_CHANGE, SIGHTINGS_BY_LOCATOR, ENTITY_EVIDENCE, VECTOR_SIGNATURES, PICTURED_NEWEST)
+STANDARDS = """
+CREATE TABLE standards(
+    subject TEXT, variant TEXT, standard TEXT, set_by TEXT, set_at REAL,
+    PRIMARY KEY(subject, variant)
+);
+CREATE TABLE proposals(
+    n INTEGER PRIMARY KEY, subject TEXT, standard TEXT, variants_json TEXT, shown_json TEXT, count INTEGER
+);
+"""
 
-CACHE_TABLES = frozenset({"entities", "sightings", "fts", "derived", "storage_state"})
-STORE_TABLES = frozenset({"tags", "answers", "vectors", "journal", "exchanges"})
+MIGRATIONS = (
+    SCHEMA_V1,
+    JOURNAL_KIND_OF_CHANGE,
+    SIGHTINGS_BY_LOCATOR,
+    ENTITY_EVIDENCE,
+    VECTOR_SIGNATURES,
+    PICTURED_NEWEST,
+    STANDARDS,
+)
+
+CACHE_TABLES = frozenset({"entities", "sightings", "fts", "derived", "storage_state", "proposals"})
+STORE_TABLES = frozenset({"tags", "answers", "vectors", "journal", "exchanges", "standards"})
 KEPT_TABLES = STORE_TABLES | {"derived"}
 REBUILT_TABLES = CACHE_TABLES - {"derived"}
 

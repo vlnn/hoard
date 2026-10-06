@@ -1,4 +1,5 @@
 from hoard.contract import (
+    TAGS,
     Change,
     Command,
     Context,
@@ -9,6 +10,9 @@ from hoard.contract import (
     LocalVectors,
     Plan,
     Sighting,
+    Spelling,
+    Standard,
+    Standardize,
     Step,
     Storage,
     TextEmbedding,
@@ -18,7 +22,7 @@ from hoard.contract import (
     roots_from,
 )
 
-__version__ = "1.4.0"
+__version__ = "1.5.0"
 
 __all__ = [
     "Change",
@@ -31,8 +35,12 @@ __all__ = [
     "LocalVectors",
     "Plan",
     "Sighting",
+    "Spelling",
+    "Standard",
+    "Standardize",
     "Step",
     "Storage",
+    "TAGS",
     "TextEmbedding",
     "Verb",
     "lazy",

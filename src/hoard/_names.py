@@ -4,7 +4,7 @@ import json
 import sqlite3
 from typing import NamedTuple, Optional
 
-from hoard import _answers, _search
+from hoard import _answers, _search, _standards
 from hoard._questions import NAME, confident
 from hoard._text import refresh_text
 from hoard.contract import Change, Kind
@@ -45,13 +45,22 @@ def write(con: sqlite3.Connection, entity_id: str, title: str, fields: tuple) ->
     )
 
 
-def overlay(con: sqlite3.Connection, kind: Kind, entity_id: str) -> None:
-    if not kind.nameable:
-        return
+def overlay_answer(con: sqlite3.Connection, kind: Kind, entity_id: str) -> None:
     title, fields, evidence_hash = stored(con, entity_id)
     answer = _answers.fresh(con, entity_id, NAME, evidence_hash)
     if answer and confident(answer):
         write(con, entity_id, *overlaid(kind, title, fields, answer))
+
+
+def overlay(con: sqlite3.Connection, kind: Kind, entity_id: str) -> None:
+    if kind.nameable:
+        overlay_answer(con, kind, entity_id)
+    _standards.overlay(con, kind, entity_id)
+
+
+def standard_overlaid(kind: Kind, title: str, fields: tuple, answer: dict, table: dict) -> tuple:
+    named_title, named_fields = overlaid(kind, title, fields, answer)
+    return named_title, _standards.standardized_fields(kind, named_fields, table)
 
 
 def answered(con: sqlite3.Connection, typed: str) -> list:
@@ -64,10 +73,10 @@ def answered(con: sqlite3.Connection, typed: str) -> list:
 
 
 def pending(con: sqlite3.Connection, kind: Kind, typed: str = "") -> list:
-    found = []
+    found, table = [], _standards.mapping(con)
     for entity_id, title, fields_json, answer_json in answered(con, typed):
         fields, answer = tuple(json.loads(fields_json)), json.loads(answer_json)
-        if not confident(answer) and overlaid(kind, title, fields, answer) != (title, fields):
+        if not confident(answer) and standard_overlaid(kind, title, fields, answer, table) != (title, fields):
             found.append(Suggestion(entity_id, title, fields, answer))
     return found
 
@@ -87,6 +96,7 @@ def accept(con: sqlite3.Connection, kind: Kind, suggestions: list) -> list:
         before = {"title": suggestion.title, "fields": list(suggestion.fields), "answer": suggestion.answer}
         store_answer(con, suggestion.id, accepted)
         write(con, suggestion.id, *overlaid(kind, suggestion.title, suggestion.fields, accepted))
+        _standards.overlay(con, kind, suggestion.id)
         refresh_text(con, suggestion.id)
         changes.append(Change(suggestion.id, "name", before, accepted))
     return changes

@@ -14,6 +14,7 @@ from hoard import (
     _requery,
     _rows,
     _search,
+    _standards,
     _suggest,
     _system,
     _tags,
@@ -65,7 +66,14 @@ def plan_undo(con, changes, ctx) -> None:
     _plan.undo_changes(changes, ctx)
 
 
-KERNEL_UNDO = {"apply": plan_undo, "accept": _names.undo, "set_tag": _tags.undo, "accept_tags": _tags.undo}
+KERNEL_UNDO = {
+    "apply": plan_undo,
+    "accept": _names.undo,
+    "set_tag": _tags.undo,
+    "accept_tags": _tags.undo,
+    "standardize": _standards.undo,
+    "keep_apart": _standards.undo,
+}
 
 
 def kind_undo(verb):
@@ -169,7 +177,7 @@ def set_tags(con, kind: Kind, ctx: Context, ids) -> str:
     target, tag = json.loads(ids[0][len(_suggest.CHOICE) :])
     changes = [_tags.set_tag(con, entity_id, tag, "hand") for entity_id in targets_of(con, target)]
     record(con, "set_tag", changes)
-    return tagged(con, kind, changes, tag)
+    return tagged(con, kind, changes, changes[0].after[0][0] if changes else tag)
 
 
 def accept_tags(con, kind: Kind, ctx: Context, ids) -> str:
@@ -178,6 +186,30 @@ def accept_tags(con, kind: Kind, ctx: Context, ids) -> str:
     record(con, "accept_tags", changes)
     tags = {change.after[0][0] for change in changes}
     return tagged(con, kind, changes, tags.pop() if len(tags) == 1 and len(changes) == 1 else "")
+
+
+def standards_set(found: list) -> str:
+    if not found:
+        return "Nothing to standardize"
+    return f"Standard: {found[0].standard}" if len(found) == 1 else f"{len(found)} standards set"
+
+
+def standardize(con, kind: Kind, ctx: Context, ids) -> str:
+    found = _standards.chosen(con, ids)
+    record(con, "standardize", _standards.accept(con, kind, found))
+    return standards_set(found)
+
+
+def keep_apart(con, kind: Kind, ctx: Context, ids) -> str:
+    found = _standards.chosen(con, ids)
+    record(con, "keep_apart", _standards.keep_apart(con, kind, found))
+    spellings = [spelling for each in found for spelling in each.shown]
+    return f"Kept apart: {', '.join(spellings)}" if spellings else "Nothing kept apart"
+
+
+def pick_standard(kind: Kind, ids) -> str:
+    _requery.reopen(f"{kind.keyword} std #{ids[0][len(_standards.ONE) :]} ")
+    return ""
 
 
 def like(kind: Kind, ids) -> str:
@@ -209,6 +241,12 @@ def dispatch(con: sqlite3.Connection, kind: Kind, ctx: Context, verb: str, ids) 
         return accept_tags(con, kind, ctx, ids)
     if verb == "pick":
         return pick(kind, ids)
+    if verb == "standardize":
+        return standardize(con, kind, ctx, ids)
+    if verb == "keep_apart":
+        return keep_apart(con, kind, ctx, ids)
+    if verb == "pick_standard" and ids:
+        return pick_standard(kind, ids)
     if verb == "like" and ids:
         return like(kind, ids)
     if verb in kind.verbs:
