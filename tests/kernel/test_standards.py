@@ -72,6 +72,10 @@ def rows(ctx, typed):
     return [row for row in api.filter(KIND, typed, ctx).rows if isinstance(row, Item)]
 
 
+def rows_of(ctx, kind, typed):
+    return [row for row in api.filter(kind, typed, ctx).rows if isinstance(row, Item)]
+
+
 def entity_id(ctx, title):
     return next(row.id for row in rows(ctx, title.lower()) if row.title == title)
 
@@ -278,3 +282,108 @@ def test_a_name_suggestion_that_a_standard_already_covers_is_not_offered(notes, 
     assert not any(line.startswith("A Scanner Darkly") for line in lines(notes, "name")), (
         "a suggestion that only restores a variant spelling should not be offered"
     )
+
+
+LE_GUIN = Standard("Ursula K. Le Guin", ("U. K. Le Guin",))
+
+
+def picker_choice(ctx, kind, spelling):
+    proposal = next(row for row in api.filter(kind, "std", ctx).rows if isinstance(row, Item) and spelling in row.subtitle)
+    key = proposal.id[len("std#") :]
+    return key, next(row for row in api.filter(kind, f"std #{key}", ctx).rows if isinstance(row, Item) and row.title == spelling)
+
+
+def test_a_choice_still_means_its_own_group_after_an_update_adds_another(ctx, shelf):
+    kind = kind_with(authors=(LE_GUIN, INITIALS))
+    write_note(shelf, "scanner", "A Scanner Darkly", "P. K. Dick; Philip K. Dick", "1977")
+    api.update(kind, ctx)
+    _, choice = picker_choice(ctx, kind, "P. K. Dick")
+    write_note(shelf, "lathe", "The Lathe of Heaven", "U. K. Le Guin; Ursula K. Le Guin", "1971")
+    api.update(kind, ctx)
+    assert api.act(kind, "standardize", [choice.id], ctx) == "Standard: P. K. Dick", "the choice should keep its meaning"
+    assert first(ctx, "lathe").startswith("The Lathe of Heaven | shelf · U. K. Le Guin; Ursula K. Le Guin"), "others stay"
+
+
+def test_a_choice_outside_its_group_is_refused(notes):
+    key, _ = picker_choice(notes, KIND, "P. K. Dick")
+    forged = "stdpick:" + json.dumps([key, "Frank Herbert"])
+    assert api.act(KIND, "standardize", [forged], notes) == "Nothing to standardize", "only a spelling of the group can win"
+
+
+def test_undo_brings_a_proposal_back_beside_the_others(ctx, shelf):
+    kind = kind_with(authors=(LE_GUIN, INITIALS))
+    write_note(shelf, "scanner", "A Scanner Darkly", "P. K. Dick; Philip K. Dick", "1977")
+    write_note(shelf, "lathe", "The Lathe of Heaven", "U. K. Le Guin; Ursula K. Le Guin", "1971")
+    api.update(kind, ctx)
+    le_guin = next(row for row in rows_of(ctx, kind, "std") if row.title == "Ursula K. Le Guin")
+    api.act(kind, "standardize", [le_guin.id], ctx)
+    api.update(kind, ctx)
+    api.act(kind, "undo", [], ctx)
+    assert lines(ctx, "std", kind)[0] == "» Accept 2 | ↩ makes every spelling below standard", "both should wait again"
+
+
+def test_choosing_another_standard_takes_the_proposal_off_the_list(notes):
+    _, choice = picker_choice(notes, KIND, "P. K. Dick")
+    api.act(KIND, "standardize", [choice.id], notes)
+    assert lines(notes, "std") == ["» Nothing to standardize"], "the group is settled whichever spelling won"
+
+
+def test_undo_restores_entities_indexed_while_the_standard_held(notes, shelf):
+    api.act(KIND, "standardize", ["std:"], notes)
+    write_note(shelf, "radio", "Radio Free Albemuth", "P. K. Dick", "1985", mtime=500)
+    api.update(KIND, notes)
+    api.act(KIND, "undo", [], notes)
+    assert first(notes, "albemuth").startswith("Radio Free Albemuth | shelf · P. K. Dick · 1985"), "undo should reach it too"
+
+
+def test_a_proposal_whose_standard_was_mapped_follows_the_map(tagged_notes):
+    narrow = kind_with(tags=(Standard("scifi", ("sci-fi",)),))
+    api.update(narrow, tagged_notes)
+    _, choice = picker_choice(tagged_notes, narrow, "sci-fi")
+    api.act(narrow, "standardize", [choice.id], tagged_notes)
+    tag(tagged_notes, "Dune", "SF")
+    api.update(KIND, tagged_notes)
+    assert lines(tagged_notes, "std")[1:] == ["sci-fi | tags · SF · 1 note"], "the group should continue under the chosen standard"
+
+
+@pytest.mark.parametrize(
+    ("rules", "shown"),
+    [
+        ((Standard("b", ("a",), True), Standard("a", ("b",), True)), "b"),
+        ((Standard("b", ("a",), True), Standard("c", ("b",), True)), "c"),
+    ],
+)
+def test_overlapping_proposals_leave_no_cycles_or_chains(ctx, shelf, rules, shown):
+    kind = kind_with(authors=rules, tags=())
+    write_note(shelf, "one", "One", "a", mtime=2000)
+    write_note(shelf, "two", "Two", "b", mtime=1000)
+    api.update(kind, ctx)
+    api.update(kind, ctx)
+    assert [line.split(" · ")[1] for line in lines(ctx, "", kind)] == [shown, shown], "every spelling should reach the end"
+    api.act(kind, "undo", [], ctx)
+    assert lines(ctx, "undo", kind) == ["» Nothing to undo"], "a second update should find nothing more to fix"
+
+
+def test_a_spelling_kept_apart_stays_apart_after_becoming_a_standard(notes, shelf):
+    api.act(KIND, "keep_apart", [rows(notes, "std")[0].id], notes)
+    kind = kind_with(authors=(TRIVIAL, INITIALS, Standard("P. K. Dick", ("PKD",))))
+    write_note(shelf, "valis2", "Valis Two", "PKD", mtime=100)
+    api.update(kind, notes)
+    api.act(kind, "standardize", ["std:"], notes)
+    api.update(kind, notes)
+    assert lines(notes, "std", kind) == ["» Nothing to standardize"], "keeping apart should outlive later standards"
+
+
+def test_tags_of_entities_no_longer_indexed_are_not_counted(tagged_notes, shelf):
+    tag(tagged_notes, "Ubik", "sci-fi")
+    (shelf / "ubik.note").unlink()
+    api.update(KIND, tagged_notes)
+    assert seen[TAGS]["sci-fi"] == 0, "a tag on a vanished entity should not count as use"
+
+
+def test_a_full_update_reads_the_standards_once(notes, mocker):
+    from hoard import _standards
+
+    spy = mocker.spy(_standards, "mapping")
+    api.update(KIND, notes, full=True)
+    assert spy.call_count <= 3, "the map should be read once per update, not once per entity"

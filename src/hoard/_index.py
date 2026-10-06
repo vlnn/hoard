@@ -8,7 +8,7 @@ import sys
 import time
 from typing import Callable, Iterator, NamedTuple, Optional
 
-from hoard import _db, _fold, _icons, _names, _progress
+from hoard import _db, _fold, _icons, _names, _progress, _standards
 from hoard._text import refresh_text
 from hoard.contract import Context, Entity, Kind, Storage
 
@@ -31,6 +31,7 @@ class Known(NamedTuple):
 class Run:
     def __init__(self, con: sqlite3.Connection, kind: Kind, ctx: Context, number: int, on_progress: Callable[[int], None]):
         self.con, self.kind, self.ctx, self.number, self.on_progress = con, kind, ctx, number, on_progress
+        self.standards = _standards.mapping(con)
         self.found = 0
         self.found_in_storage = 0
         self.checked = 0
@@ -180,7 +181,7 @@ def index_file(run: Run, storage: Storage, path: str, stat: os.stat_result, know
         return False
     store_sighting(run.con, storage.name, entity, path, stat)
     store_entity(run, entity, stat)
-    _names.overlay(run.con, run.kind, entity.id)
+    _names.overlay(run.con, run.kind, entity.id, run.standards)
     refresh_text(run.con, entity.id)
     return True
 

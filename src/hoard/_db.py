@@ -116,7 +116,7 @@ CREATE TABLE standards(
     PRIMARY KEY(subject, variant)
 );
 CREATE TABLE proposals(
-    n INTEGER PRIMARY KEY, subject TEXT, standard TEXT, variants_json TEXT, shown_json TEXT, count INTEGER
+    key TEXT PRIMARY KEY, subject TEXT, standard TEXT, variants_json TEXT, shown_json TEXT, count INTEGER
 );
 """
 

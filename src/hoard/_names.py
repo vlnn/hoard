@@ -52,10 +52,10 @@ def overlay_answer(con: sqlite3.Connection, kind: Kind, entity_id: str) -> None:
         write(con, entity_id, *overlaid(kind, title, fields, answer))
 
 
-def overlay(con: sqlite3.Connection, kind: Kind, entity_id: str) -> None:
+def overlay(con: sqlite3.Connection, kind: Kind, entity_id: str, standards: Optional[dict] = None) -> None:
     if kind.nameable:
         overlay_answer(con, kind, entity_id)
-    _standards.overlay(con, kind, entity_id)
+    _standards.overlay(con, kind, entity_id, standards)
 
 
 def standard_overlaid(kind: Kind, title: str, fields: tuple, answer: dict, table: dict) -> tuple:

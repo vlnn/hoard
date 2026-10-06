@@ -132,7 +132,7 @@ def tag_rows(con, kind: Kind, ctx: Context, words: list) -> tuple:
 
 def proposal_item(kind: Kind, found) -> Item:
     detail = [found.subject, ", ".join(found.shown)] + ([_rows.counted(kind, found.count)] if found.count else [])
-    return Item(f"{_standards.ONE}{found.n}", found.standard, " · ".join(detail), verb="standardize", mods=(STANDARD_MOD,))
+    return Item(f"{_standards.ONE}{found.key}", found.standard, " · ".join(detail), verb="standardize", mods=(STANDARD_MOD,))
 
 
 def nothing_to_standardize() -> tuple:
@@ -144,13 +144,13 @@ def spelling_item(found, spelling: str) -> Item:
     return Item(_standards.choice_id(found, spelling), spelling, note, verb="standardize")
 
 
-def standard_picker_rows(con: sqlite3.Connection, number: str) -> tuple:
-    found = _standards.proposal(con, number)
+def standard_picker_rows(con: sqlite3.Connection, key: str) -> tuple:
+    found = _standards.proposal(con, key)
     if found is None:
         return nothing_to_standardize()
     head = Head("picker", f"{found.subject}: {found.standard}", "pick the standard spelling")
     spellings = tuple(spelling_item(found, spelling) for spelling in (found.standard, *found.shown))
-    apart = Item(f"{_standards.ONE}{found.n}", "Keep apart", "these stay different spellings", verb="keep_apart")
+    apart = Item(f"{_standards.ONE}{found.key}", "Keep apart", "these stay different spellings", verb="keep_apart")
     return (head, *spellings, apart)
 
 
