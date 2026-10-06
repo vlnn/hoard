@@ -258,7 +258,48 @@ or two thousand.
 recognise the thing, plus a short excerpt. `python3 -m hoard books ask name --dry-run` prints exactly
 what would be sent.
 
-## 10. Tests
+## 10. Standard spellings: `std`
+
+Collections spell the same thing several ways: one writer as `Samuel R. Delany`, `Delany, Samuel R.`
+and `S. R. Delany`, one genre as `sci-fi` and `scifi`. A kind that knows how to recognise its own
+variants declares them, and hoard keeps the result:
+
+```python
+from hoard.contract import TAGS, Standardize, lazy
+
+KIND = Kind(
+    ...,
+    standards={
+        "authors": Standardize(lazy("books.spellings", "authors"), separator="; "),
+        TAGS: Standardize(lazy("books.spellings", "genres")),
+    },
+)
+```
+
+A key is one of `fields`, or `TAGS` for the kind's tags (which then needs `tags`). `separator` splits
+a multi-valued field, so `"A; B"` is two spellings. After every update hoard collects each subject's
+distinct spellings, each with the number of entities using it (for `TAGS`, the tags in use plus
+`kind.tags(ctx)` at zero), and calls `propose(spellings, ctx)` in the background worker. It returns
+`Standard(standard, variants, trivial)` records:
+
+- **`trivial=True`** proposals are applied by the update itself, as one undoable `standardize` batch.
+  Mark only what cannot be wrong: case, punctuation, word order. Undoing that batch keeps the
+  spellings apart for good, so an update does not apply them again.
+- the rest wait in `bk std`: ↩ accepts one, **Accept N** all of them, ⌘↩ opens a picker to choose
+  another spelling as the standard or **Keep apart**.
+
+Spellings already settled (standardized or kept apart) are filtered out before the list is shown,
+and a proposal needs at least one variant that is in use. A `propose` that raises proposes nothing
+and goes to the worker log.
+
+An accepted standard is a row in the `standards` table, variant → standard. hoard applies it to every
+entity's fields after each read (after a confident `name` answer), so search and rows show the
+standard; it rewrites tags, folds variants out of the tag picker and the model's tag list, and
+stores a hand tag or a model guess under its standard. Kind code sees the same map:
+`ctx.standard(subject, value)` returns the standard, or the value itself. Books uses it to file a book
+from a variant genre folder into the standard one.
+
+## 11. Tests
 
 `tests/test_conformance.py` is three lines from the template; give it samples:
 

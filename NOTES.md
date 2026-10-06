@@ -90,6 +90,19 @@ The kernel's own files (database, cache, lock, log, icons) are not on this list;
   planes, read through a covering index; `like` shortlists the 200 closest signatures and scores
   those exactly, about 15 ms among 10 000 × 1 024 here. Vectors stored before v5 are made again.
 
+## Standard spellings (1.5.0)
+
+- **Kinds propose, the kernel keeps.** `Kind.standards = {field or TAGS: Standardize(propose, separator)}`;
+  the matching rules stay in the kind, the alias map (`standards`, a store table) and the pending
+  list (`proposals`, a cache table) in the kernel. Schema v7.
+- **Proposals are made by `api.update` only**, not by the re-index after an action, so an action
+  never adds a second journal batch on top of its own and `undo` stays the user's.
+- **The overlay runs after the name overlay**, so a confident name answer that brings back a variant
+  is mapped again; `name` hides an unsure answer that would only restore a variant.
+- **Undoing an automatic standard keeps its spellings apart** (a `standards` row mapping the variant to
+  itself); undoing an accepted one restores the proposal.
+- **Reserved:** command `std`; verbs `standardize`, `keep_apart`, `pick_standard`.
+
 ## To verify on the Mac
 
 - **Keystroke budget in Alfred's debugger** (the Phase 0 gate). Here, on Python 3.9: bare
