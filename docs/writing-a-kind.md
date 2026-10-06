@@ -63,7 +63,7 @@ KIND = Kind(
 ```
 
 Only `name`, `keyword`, `storages`, `fields` and `evidence` are required. With just those, a kind
-already has search, newest-first listing, ⇧↩ open, ⌥↩ reveal, `update`, `rnd` and `stats`.
+already has search, a listing with covered entities first and newest first within each, ⇧↩ open, ⌥↩ reveal, `update`, `rnd` and `stats`.
 
 **Keep the module light.** Alfred starts a fresh Python on every keystroke, and the kind's
 `__init__` is imported each time. Anything that pulls in `zipfile`, `xml`, `urllib`, `shutil` or

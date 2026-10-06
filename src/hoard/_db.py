@@ -106,7 +106,13 @@ CREATE INDEX vectors_signed ON vectors(model, id, sig);
 DROP TABLE neighbours;
 """
 
-MIGRATIONS = (SCHEMA_V1, JOURNAL_KIND_OF_CHANGE, SIGHTINGS_BY_LOCATOR, ENTITY_EVIDENCE, VECTOR_SIGNATURES)
+COVERED_FIRST = "icon IS NULL, mtime DESC"
+
+COVERED_NEWEST = f"""
+CREATE INDEX entities_covered_newest ON entities({COVERED_FIRST});
+"""
+
+MIGRATIONS = (SCHEMA_V1, JOURNAL_KIND_OF_CHANGE, SIGHTINGS_BY_LOCATOR, ENTITY_EVIDENCE, VECTOR_SIGNATURES, COVERED_NEWEST)
 
 CACHE_TABLES = frozenset({"entities", "sightings", "fts", "derived", "storage_state"})
 STORE_TABLES = frozenset({"tags", "answers", "vectors", "journal", "exchanges"})

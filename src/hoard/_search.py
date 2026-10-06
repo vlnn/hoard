@@ -3,13 +3,15 @@ from __future__ import annotations
 import sqlite3
 from typing import Optional
 
+from hoard._db import COVERED_FIRST
+
 LIMIT = 40
 EVERYTHING = -1
 
 ENTITIES = """
 SELECT e.id, e.title, e.fields_json, e.icon
 FROM ({chosen}) chosen JOIN entities e ON e.rowid = chosen.rowid
-ORDER BY e.mtime DESC
+ORDER BY e.icon IS NULL, e.mtime DESC
 """
 
 MATCHING = "rowid IN (SELECT rowid FROM fts WHERE fts MATCH ?)"
@@ -72,7 +74,7 @@ def search(con: sqlite3.Connection, typed: str, limit: int = LIMIT, on=(), off=(
     if narrowed is None:
         return []
     clause, parameters = narrowed
-    return chosen(con, f"SELECT rowid FROM entities{clause} ORDER BY mtime DESC LIMIT ?", *parameters, limit)
+    return chosen(con, f"SELECT rowid FROM entities{clause} ORDER BY {COVERED_FIRST} LIMIT ?", *parameters, limit)
 
 
 def count(con: sqlite3.Connection, typed: str, on=(), off=(), untagged: bool = False) -> int:
@@ -88,7 +90,7 @@ def ids(con: sqlite3.Connection, typed: str, on=(), off=(), untagged: bool = Fal
     if narrowed is None:
         return []
     clause, parameters = narrowed
-    return [row[0] for row in con.execute(f"SELECT id FROM entities{clause} ORDER BY mtime DESC", parameters)]
+    return [row[0] for row in con.execute(f"SELECT id FROM entities{clause} ORDER BY {COVERED_FIRST}", parameters)]
 
 
 def random_entities(con: sqlite3.Connection, limit: int) -> list:

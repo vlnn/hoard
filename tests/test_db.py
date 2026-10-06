@@ -194,3 +194,10 @@ def test_a_busy_database_still_connects_and_switches_to_wal_later(tmp_path):
     reader.close()
     writer.close()
     assert mode == "wal", "a locked switch should be skipped quietly and done on a later try"
+
+
+def test_the_covered_first_order_is_served_by_an_index(tmp_db):
+    plan = " ".join(row[-1] for row in tmp_db.execute(f"EXPLAIN QUERY PLAN SELECT rowid FROM entities ORDER BY {_db.COVERED_FIRST} LIMIT 40"))
+    assert "entities_covered_newest" in plan and "TEMP B-TREE" not in plan, (
+        "listing covered books first, newest first, should read an index rather than sort the table"
+    )
