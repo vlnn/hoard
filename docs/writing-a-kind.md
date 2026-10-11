@@ -220,6 +220,9 @@ KIND = Kind(
 - **`tags(ctx)`** returns the allowed tags (Books reads them from a setting). `bk tag` lists untagged
   rows with the model's guess as `scifi?`; ↩ or ⌘↩ opens a picker; "Accept N suggested" applies the
   guesses in one batch. A hand tag always wins and drops the model's guess. Tags are searchable.
+  `bk retag <words>` lists every match, tagged or not, with its current tag; "Retag all N" picks
+  one tag for all of them as one undoable batch. It needs words, so a whole index is never retagged
+  by accident.
 - **`like`** defaults to `TextEmbedding()`: the embeddings model reads your `evidence`, trimmed to
   1 500 characters. `bk like <words>`, `bk like #<id>` or ⌃↩ on any row lists the nearest entities with
   a percentage. With no words, `like` starts from `last_opened(ctx)` if the kind supplies it, else from

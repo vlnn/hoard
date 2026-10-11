@@ -26,7 +26,7 @@ KERNEL_VERBS = frozenset(
         "pick_standard",
     }
 )
-KERNEL_COMMANDS = frozenset({"update", "undo", "rnd", "stats", "fix", "model", "name", "tag", "like", "std"})
+KERNEL_COMMANDS = frozenset({"update", "undo", "rnd", "stats", "fix", "model", "name", "tag", "retag", "like", "std"})
 TAGS = "tags"
 STEP_VERBS = frozenset({"move", "trash"})
 COMMAND_VERBS = frozenset({"open", "reveal"})

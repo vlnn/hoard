@@ -270,3 +270,59 @@ def test_asking_counts_every_entity_asked_out_of_all_stale_questions(served, moc
     assert seen == [("ask", str(n), "4") for n in range(4)], "each call should see how many were asked before it, out of all"
     assert _progress.current(watcher) == ("ask", "4", "4"), "the end should count every entity asked, answered or not"
     watcher.close()
+
+
+def hand_tag(ctx, entity_id, tag):
+    choice = api.filter(FakeKind, f"tag #{entity_id} {tag}", ctx).rows[1]
+    api.act(FakeKind, "set_tag", [choice.id], ctx)
+
+
+def test_retag_lists_every_match_with_its_current_tag(served, shelf):
+    ctx, ids = served
+    hand_tag(ctx, ids["ubik"], "fantasy")
+    assert lines(ctx, "retag ubik") == [
+        "» Retag all 1 | pick one tag for every row below, tagged or not",
+        f"Ubik | fantasy · shelf · Philip K. Dick · 1969 · {shelf}/ubik.note",
+    ], "retag should list tagged rows too, showing the tag each one has now"
+
+
+def test_retag_without_words_asks_for_them(served):
+    ctx, _ = served
+    assert lines(ctx, "retag") == ["» Retag what? | add words to choose the rows to retag"], (
+        "retagging the whole index by accident should not be one keystroke away"
+    )
+
+
+def test_retag_with_no_match_says_so(served):
+    ctx, _ = served
+    assert lines(ctx, "retag pohl") == ["» Nothing to retag"], "no match should be a plain head row"
+
+
+def test_retag_all_replaces_the_tag_on_every_match_in_one_batch(served):
+    ctx, ids = served
+    hand_tag(ctx, ids["ubik"], "fantasy")
+    choice = api.filter(FakeKind, "retag #** scifi", ctx).rows[1]
+    assert api.act(FakeKind, "set_tag", [choice.id], ctx) == "Tagged 2 notes: scifi", "tagged and untagged rows alike"
+    assert len(lines(ctx, "scifi")) == 2, "both should now be found by the new tag"
+    assert lines(ctx, "fantasy") == ["» No match for fantasy"], "the old tag should be gone"
+    assert api.act(FakeKind, "undo", [], ctx) == "Undid Tag", "the batch should undo as one"
+    assert [line for line in lines(ctx, "fantasy") if line.startswith("Ubik")], "undo should restore the old tag"
+    assert any("dune" in line for line in lines(ctx, "tag")), "undo should leave the untagged row untagged again"
+
+
+def test_retag_all_is_narrowed_by_the_typed_words(served):
+    ctx, ids = served
+    choice = api.filter(FakeKind, "retag #**ubik scifi", ctx).rows[1]
+    assert api.act(FakeKind, "set_tag", [choice.id], ctx) == "Tagged Ubik: scifi", "only the matching row should change"
+
+
+def test_the_retag_picker_head_counts_every_match(served):
+    ctx, ids = served
+    hand_tag(ctx, ids["ubik"], "fantasy")
+    assert lines(ctx, "retag #** sci")[0] == "» Retag all 2 | pick a tag", "the head should count tagged rows too"
+    assert lines(ctx, "retag #**ubik sci")[0] == "» Retag all 1 | pick a tag", "the words should narrow the count"
+
+
+def test_retag_is_completed_like_tag(served):
+    ctx, _ = served
+    assert "» fk retag | ↩ to complete" in lines(ctx, "ret"), "retag should complete once tags are configured"

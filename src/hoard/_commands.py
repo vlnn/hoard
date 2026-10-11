@@ -184,6 +184,12 @@ def tag_rows(con, kind, ctx, words) -> tuple:
     return _suggest.tag_rows(con, kind, ctx, words)
 
 
+def retag_rows(con, kind, ctx, words) -> tuple:
+    from hoard import _suggest
+
+    return _suggest.retag_rows(con, kind, ctx, words)
+
+
 def std_rows(con, kind, ctx, words) -> tuple:
     from hoard import _suggest
 
@@ -225,6 +231,7 @@ OPTIONAL_COMMANDS = {
     "model": (models_configured, model_rows),
     "name": (nameable, name_rows),
     "tag": (taggable, tag_rows),
+    "retag": (taggable, retag_rows),
     "like": (likeable, like_rows),
     "std": (standardizable, std_rows),
 }

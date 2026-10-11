@@ -169,7 +169,7 @@ def tagged(con, kind: Kind, changes: list, tag: str = "") -> str:
 
 def targets_of(con, target: str) -> list:
     if target.startswith(_suggest.EVERY):
-        return _suggest.untagged_ids(con, _suggest.target_words(target))
+        return _suggest.targeted_ids(con, target)
     return [target[1:]]
 
 

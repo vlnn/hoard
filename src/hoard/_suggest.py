@@ -10,6 +10,7 @@ from hoard.items import Head, Item, Mod
 
 CHOICE = "tagset:"
 EVERY = "#*"
+ALL = "#**"
 STANDARD_MOD = Mod("cmd", "pick_standard", "Choose the standard spelling, or keep them apart")
 
 
@@ -48,21 +49,32 @@ def choice(target: str, tag: str) -> str:
     return CHOICE + json.dumps([target, tag], ensure_ascii=False)
 
 
-def every_target(words: list) -> str:
-    return EVERY + "+".join(words)
+def every_target(words: list, tagged_too: bool = False) -> str:
+    return (ALL if tagged_too else EVERY) + "+".join(words)
+
+
+def every_prefix(target: str) -> str:
+    return ALL if target.startswith(ALL) else EVERY
 
 
 def target_words(target: str) -> str:
-    return target[len(EVERY) :].replace("+", " ")
+    return target[len(every_prefix(target)) :].replace("+", " ")
 
 
 def untagged_ids(con: sqlite3.Connection, typed: str) -> list:
     return _search.ids(con, typed, untagged=True)
 
 
+def targeted_ids(con: sqlite3.Connection, target: str) -> list:
+    if target.startswith(ALL):
+        return _search.ids(con, target_words(target))
+    return untagged_ids(con, target_words(target))
+
+
 def picker_head(con: sqlite3.Connection, kind: Kind, target: str) -> Head:
     if target.startswith(EVERY):
-        return Head("picker", f"Tag all {len(untagged_ids(con, target_words(target)))}", "pick a tag")
+        verb = "Retag" if target.startswith(ALL) else "Tag"
+        return Head("picker", f"{verb} all {len(targeted_ids(con, target))}", "pick a tag")
     row = con.execute("SELECT title FROM entities WHERE id = ?", (target[1:],)).fetchone()
     return Head("picker", row[0] if row else "Nothing to tag", "pick a tag")
 
@@ -128,6 +140,30 @@ def tag_rows(con, kind: Kind, ctx: Context, words: list) -> tuple:
         return (Head("none", "Nothing to tag"),)
     rows = _fold.fold(con, kind, ctx, _search.search(con, typed, untagged=True, order=_search.order_of(kind)))
     return tuple(tag_heads(con, kind, ctx, words, total)) + tuple(tag_item(con, kind, ctx, row) for row in rows)
+
+
+def tagged_item(kind: Kind, ctx: Context, row) -> Item:
+    item = _rows.entity_item(kind, row, verb="pick", ctx=ctx)
+    tags = ", ".join(row.found.tags)
+    return item._replace(subtitle=f"{tags} · {item.subtitle}") if tags else item
+
+
+def retag_head(words: list, total: int) -> Head:
+    note = "pick one tag for every row below, tagged or not"
+    return Head("retag all", f"Retag all {total}", note, verb="pick", arg=f"pick:{every_target(words, tagged_too=True)}")
+
+
+def retag_rows(con, kind: Kind, ctx: Context, words: list) -> tuple:
+    if words and words[0].startswith("#"):
+        return picker_rows(con, kind, ctx, words[0], " ".join(words[1:]))
+    if not words:
+        return (Head("none", "Retag what?", "add words to choose the rows to retag"),)
+    typed = " ".join(words)
+    total = _search.count(con, typed)
+    if not total:
+        return (Head("none", "Nothing to retag"),)
+    rows = _fold.fold(con, kind, ctx, _search.search(con, typed, order=_search.order_of(kind)))
+    return (retag_head(words, total),) + tuple(tagged_item(kind, ctx, row) for row in rows)
 
 
 def proposal_item(kind: Kind, found) -> Item:
