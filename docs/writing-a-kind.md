@@ -112,6 +112,18 @@ lists every declared setting and says which are empty.
 the order of `storages`, and the subtitle names the others: `device +library`. A storage whose root
 is not mounted keeps its entities in the index; their rows fall back to the next reachable copy.
 
+**What a row says is the kind's call.** By default the subtitle is the places, then every non-empty
+field: `device +library · Frank Herbert · 1965`. A kind that wants more, or a different order, gives
+`Kind` a `subtitle(found, ctx)` and hoard uses it for every row it lists: searches, commands, `like`,
+`tag` and `retag` alike. `found.places` is the places string, so a kind only adds what it knows:
+
+```python
+def subtitle(found: Found, ctx: Context) -> str:
+    return " · ".join(part for part in (*found.tags, found.places, *found.entity.fields) if part)
+```
+
+hoard itself never puts tags in a subtitle; the kind that has them decides where they go.
+
 ## 5. What ↩ does: `default_verb` and verbs
 
 Everything hoard hands a kind about an entity arrives as a `Found`: the entity plus every

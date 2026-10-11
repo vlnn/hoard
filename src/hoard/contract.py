@@ -67,6 +67,14 @@ class Found(NamedTuple):
     def nearest(self) -> Optional[Sighting]:
         return next((s for s in self.sightings if s.reachable), self.sightings[0] if self.sightings else None)
 
+    @property
+    def places(self) -> str:
+        nearest = self.nearest
+        if nearest is None:
+            return ""
+        others = "".join(f" +{storage}" for storage in self.storages if storage != nearest.storage)
+        return nearest.storage + others + ("" if nearest.reachable else " (not reachable)")
+
     def on(self, storage: str) -> bool:
         return storage in self.storages
 
@@ -195,6 +203,7 @@ class _KindRecord(NamedTuple):
     last_opened: Optional[Callable[[Context], Optional[str]]] = None
     pictured_first: bool = False
     standards: Mapping[str, Standardize] = NOTHING
+    subtitle: Optional[Callable[[Found, Context], str]] = None
 
 
 class Kind(_KindRecord):
@@ -261,6 +270,7 @@ def problems(kind: Kind) -> list:
         (set(kind.standards) <= standard_subjects(kind), "standards should name the kind's fields or tags"),
         (all(standardizes(record) for record in kind.standards.values()), "standards should be Standardize records"),
         (TAGS not in kind.standards or kind.tags is not None, "standard tags need tags"),
+        (kind.subtitle is None or callable(kind.subtitle), "subtitle should be callable with the found and context, or None"),
     )
     return [message for passed, message in checks if not passed]
 

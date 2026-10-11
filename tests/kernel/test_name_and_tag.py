@@ -277,13 +277,13 @@ def hand_tag(ctx, entity_id, tag):
     api.act(FakeKind, "set_tag", [choice.id], ctx)
 
 
-def test_retag_lists_every_match_with_its_current_tag(served, shelf):
+def test_retag_lists_tagged_rows_too(served, shelf):
     ctx, ids = served
     hand_tag(ctx, ids["ubik"], "fantasy")
     assert lines(ctx, "retag ubik") == [
         "» Retag all 1 | pick one tag for every row below, tagged or not",
-        f"Ubik | fantasy · shelf · Philip K. Dick · 1969 · {shelf}/ubik.note",
-    ], "retag should list tagged rows too, showing the tag each one has now"
+        f"Ubik | shelf · Philip K. Dick · 1969 · {shelf}/ubik.note",
+    ], "retag should list tagged rows, shown as the kind shows them everywhere else"
 
 
 def test_retag_without_words_asks_for_them(served):
@@ -326,3 +326,22 @@ def test_the_retag_picker_head_counts_every_match(served):
 def test_retag_is_completed_like_tag(served):
     ctx, _ = served
     assert "» fk retag | ↩ to complete" in lines(ctx, "ret"), "retag should complete once tags are configured"
+
+
+def genre_first(found, ctx) -> str:
+    return " · ".join(part for part in (*found.tags, found.places, *found.entity.fields) if part)
+
+
+def test_a_kind_decides_its_own_subtitle(served, shelf):
+    ctx, ids = served
+    hand_tag(ctx, ids["ubik"], "fantasy")
+    assert lines(ctx, "ubik") == [f"Ubik | shelf · Philip K. Dick · 1969 · {shelf}/ubik.note"], (
+        "without a subtitle hook the kernel shows places and fields only, never tags"
+    )
+    own = FakeKind._replace(subtitle=genre_first)
+    rows = text.render(api.filter(own, "ubik", ctx))
+    assert rows == [f"Ubik | fantasy · shelf · Philip K. Dick · 1969 · {shelf}/ubik.note"], (
+        "a kind with a subtitle hook should decide what every row shows"
+    )
+    retag = text.render(api.filter(own, "retag ubik", ctx))
+    assert retag[1] == rows[0], "retag rows should use the kind's subtitle too"

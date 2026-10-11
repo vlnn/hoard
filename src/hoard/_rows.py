@@ -29,18 +29,16 @@ def counted(kind: Kind, count: int) -> str:
     return f"{count} {noun}"
 
 
-def places(found: Found) -> str:
-    nearest = found.nearest
-    if nearest is None:
-        return ""
-    others = "".join(f" +{storage}" for storage in found.storages if storage != nearest.storage)
-    return nearest.storage + others + ("" if nearest.reachable else " (not reachable)")
-
-
-def subtitle(kind: Kind, found: Found) -> str:
-    parts = [places(found)] if len(kind.storages) > 1 else []
+def default_subtitle(kind: Kind, found: Found) -> str:
+    parts = [found.places] if len(kind.storages) > 1 else []
     parts += [value for value in found.entity.fields if value]
     return " · ".join(part for part in parts if part)
+
+
+def subtitle(kind: Kind, found: Found, ctx: Optional[Context]) -> str:
+    if kind.subtitle is None or ctx is None:
+        return default_subtitle(kind, found)
+    return kind.subtitle(found, ctx)
 
 
 def entity_item(kind: Kind, row: Row, verb: Optional[str] = None, ctx: Optional[Context] = None) -> Item:
@@ -49,7 +47,7 @@ def entity_item(kind: Kind, row: Row, verb: Optional[str] = None, ctx: Optional[
     return Item(
         id=found.entity.id,
         title=found.entity.title,
-        subtitle=subtitle(kind, found),
+        subtitle=subtitle(kind, found, ctx),
         icon=row.icon,
         locator=nearest.locator if nearest else None,
         verb=verb or kind.default_verb(found),

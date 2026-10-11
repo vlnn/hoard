@@ -87,6 +87,7 @@ def test_a_kind_needs_only_storages_fields_and_evidence():
         ({"derive": {"OCR text": str}}, "derived keys should be lowercase identifiers"),
         ({"labels": {"one": 1}}, "labels should be strings"),
         ({"commands": {"loose": Command("Open", "open", off=("device",))}}, "off should name the kind's storages"),
+        ({"subtitle": "author"}, "subtitle should be callable or None"),
     ],
 )
 def test_a_malformed_kind_fails_when_built(overrides, reason):
@@ -159,6 +160,19 @@ def test_found_answers_where_an_entity_is():
     assert sighted.on("device") and not sighted.on("satchel"), "on() should say whether a storage holds it"
     assert sighted.locator_in("library") == "/library/x", "locator_in() should give that storage's copy"
     assert sighted.locator_in("satchel") is None, "a storage without a copy has no locator"
+
+
+@pytest.mark.parametrize(
+    "storages, reachable, places",
+    [
+        (("device", "library"), ("device", "library"), "device +library"),
+        (("device", "library"), ("library",), "library +device"),
+        (("device",), (), "device (not reachable)"),
+        ((), (), ""),
+    ],
+)
+def test_found_names_its_places_nearest_first(storages, reachable, places):
+    assert found(*storages, reachable=reachable).places == places, "places should lead with the nearest copy"
 
 
 def test_context_carries_the_roots_of_every_storage():

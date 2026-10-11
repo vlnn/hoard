@@ -142,12 +142,6 @@ def tag_rows(con, kind: Kind, ctx: Context, words: list) -> tuple:
     return tuple(tag_heads(con, kind, ctx, words, total)) + tuple(tag_item(con, kind, ctx, row) for row in rows)
 
 
-def tagged_item(kind: Kind, ctx: Context, row) -> Item:
-    item = _rows.entity_item(kind, row, verb="pick", ctx=ctx)
-    tags = ", ".join(row.found.tags)
-    return item._replace(subtitle=f"{tags} · {item.subtitle}") if tags else item
-
-
 def retag_head(words: list, total: int) -> Head:
     note = "pick one tag for every row below, tagged or not"
     return Head("retag all", f"Retag all {total}", note, verb="pick", arg=f"pick:{every_target(words, tagged_too=True)}")
@@ -163,7 +157,7 @@ def retag_rows(con, kind: Kind, ctx: Context, words: list) -> tuple:
     if not total:
         return (Head("none", "Nothing to retag"),)
     rows = _fold.fold(con, kind, ctx, _search.search(con, typed, order=_search.order_of(kind)))
-    return (retag_head(words, total),) + tuple(tagged_item(kind, ctx, row) for row in rows)
+    return (retag_head(words, total),) + tuple(_rows.entity_item(kind, row, verb="pick", ctx=ctx) for row in rows)
 
 
 def proposal_item(kind: Kind, found) -> Item:
