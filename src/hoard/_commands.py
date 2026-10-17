@@ -157,7 +157,7 @@ def model_item(role: str, model: str, chosen: str) -> Item:
 
 
 def role_rows(con, ctx: Context, role: str) -> list:
-    from hoard._http import ModelError
+    from hoard.alfred.chat import ModelError
 
     url = _models.url_of(ctx, role)
     try:

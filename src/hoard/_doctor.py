@@ -122,7 +122,7 @@ def setting_check(ctx: Context, variable: str, label: str) -> Check:
 
 
 def server_check(ctx: Context, role: str) -> Check:
-    from hoard._http import ModelError
+    from hoard.alfred.chat import ModelError
 
     url = _models.url_of(ctx, role)
     try:

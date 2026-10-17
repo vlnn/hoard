@@ -14,7 +14,7 @@ BATCH = 16
 
 
 def embeddings_server(con: sqlite3.Connection, ctx: Context) -> _models.Server:
-    from hoard._http import ModelError
+    from hoard.alfred.chat import ModelError
 
     server = _models.server(con, ctx, "embeddings")
     if server is None:

@@ -100,7 +100,7 @@ def ask_dry_run(kind: Kind, ctx: Optional[Context] = None, questions: Optional[l
 
 def __getattr__(name: str):
     if name == "ModelError":
-        from hoard._http import ModelError
+        from hoard.alfred.chat import ModelError
 
         return ModelError
     raise AttributeError(f"module 'hoard.api' has no attribute {name!r}")

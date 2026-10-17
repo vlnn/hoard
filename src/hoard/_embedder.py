@@ -3,7 +3,7 @@ from __future__ import annotations
 from array import array
 from typing import Callable, Optional
 
-from hoard._http import request
+from hoard.alfred.chat import request
 
 BATCH = 16
 TRIM = 1500

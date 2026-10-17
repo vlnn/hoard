@@ -4,7 +4,7 @@ import json
 import sys
 from typing import Callable, Optional
 
-from hoard._http import ModelError, request
+from hoard.alfred.chat import ModelError, request
 
 ATTEMPTS = 2
 INSTRUCTIONS = "Answer only from the evidence, as JSON matching the schema. Leave a field empty when the evidence does not say."

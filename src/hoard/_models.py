@@ -69,6 +69,6 @@ def use(con: sqlite3.Connection, role: str, model: str) -> None:
 
 
 def available(url: str, key: str = "", timeout: float = PROBE_TIMEOUT) -> list:
-    from hoard._http import request
+    from hoard.alfred.chat import request
 
     return [item["id"] for item in request(f"{url}/v1/models", timeout=timeout, key=key).get("data", [])]

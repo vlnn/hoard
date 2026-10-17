@@ -5,7 +5,7 @@ import sqlite3
 from typing import Optional
 
 from hoard import _answers, _models, _names, _oracle, _progress, _questions
-from hoard._http import ModelError
+from hoard.alfred.chat import ModelError
 from hoard._text import refresh_text
 from hoard.contract import Context, Kind
 
