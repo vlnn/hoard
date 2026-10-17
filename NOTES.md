@@ -193,3 +193,6 @@ that layer, moved out from under the kernel rather than written again:
   `plist.toml`); no kind is probed, no entry script written, and `--check` imports the package.
 - `test_imports` bans `hoard.alfred.chat`, `apple` and `macos` from the keystroke path like the
   private modules they replaced, and `import hoard.alfred` is tested to load none of them.
+
+1.7.1: assets keep their mode in the bundle (a Text View's script file must be executable), and
+`py.typed` ships so a workflow's mypy reads the toolkit's annotations.

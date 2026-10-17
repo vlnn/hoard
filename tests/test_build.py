@@ -247,6 +247,13 @@ def test_a_toolkit_bundle_vendors_the_package_from_its_source_folder_with_its_as
     assert "hoard.py" not in names, "a hand-made canvas calls its package itself, so there is no kernel entry script"
 
 
+def test_an_executable_asset_stays_executable_in_the_bundle(handmade):
+    (handmade / "workflow" / "view").chmod(0o755)
+    with zipfile.ZipFile(build.bundle(handmade)) as archive:
+        mode = archive.getinfo("view").external_attr >> 16
+    assert mode & 0o111, "Alfred runs a Text View's script file directly, so its mode must survive the zip"
+
+
 def test_check_imports_a_toolkit_workflows_package_from_the_bundle(handmade):
     assert build.check(handmade) == "ok: tiny imports", "the bundle should import its package on the system python"
 

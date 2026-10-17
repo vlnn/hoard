@@ -90,7 +90,7 @@ def copy_asset(source: Path, target: Path) -> None:
     if source.is_dir():
         shutil.copytree(source, target / source.name)
     else:
-        shutil.copyfile(source, target / source.name)
+        shutil.copy(source, target / source.name)
 
 
 def stage(repo: Path, workflow: Workflow, target: Path) -> None:
