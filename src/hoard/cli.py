@@ -57,9 +57,6 @@ def update_mode(module: str, args: list) -> None:
     print(f"{api.update(load_kind(module), full='--full' in args)} found")
 
 
-TRUE = {"1", "true", "yes", "on"}
-
-
 def quietly(label: str, work) -> None:
     from hoard import api
 
@@ -81,12 +78,13 @@ def ask_and_embed(kind, ctx) -> None:
 
 def run_job(kind, ctx, job: str) -> None:
     from hoard import api
+    from hoard.alfred.settings import is_on
 
     if job == "update":
         print(f"{api.update(kind, ctx)} found", flush=True)
     if job == "embed":
         quietly("embedded", lambda: api.embed(kind, ctx))
-    if job == "ask" or (job == "update" and ctx.setting("hoard_ask_on_update").strip().lower() in TRUE):
+    if job == "ask" or (job == "update" and is_on(ctx.setting("hoard_ask_on_update"))):
         ask_and_embed(kind, ctx)
 
 

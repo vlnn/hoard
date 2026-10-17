@@ -15,7 +15,7 @@ from hoard.testing.conformance import imported_names
 
 PACKAGE = Path(__file__).resolve().parents[1] / "src" / "hoard"
 PUBLIC = {"__init__", "__main__", "contract", "api", "items", "cli", "new"}
-SUBPACKAGES = {"render", "testing", "build", "template"}
+SUBPACKAGES = {"alfred", "render", "testing", "build", "template"}
 DEV_ONLY = {"testing": {"pytest"}}
 KIND_NAMES = re.compile(r"\b(books|music|spotify)\b", re.IGNORECASE)
 NEWER_STANDARD_LIBRARY = {"tomllib"}
@@ -36,6 +36,9 @@ FILTER_BANNED = (
     "hoard._system",
     "hoard._oracle",
     "hoard._embedder",
+    "hoard.alfred.chat",
+    "hoard.alfred.apple",
+    "hoard.alfred.macos",
 )
 
 
@@ -85,7 +88,7 @@ def test_private_modules_carry_an_underscore():
     modules = {p.stem for p in PACKAGE.glob("*.py")}
     folders = {p.name for p in PACKAGE.iterdir() if p.is_dir() and p.name != "__pycache__"}
     assert {m for m in modules - PUBLIC if not m.startswith("_")} == set(), "only the public surface goes unprefixed"
-    assert folders == SUBPACKAGES, "the library should grow no folders beyond render, testing, build and template"
+    assert folders == SUBPACKAGES, "the library should grow no folders beyond alfred, render, testing, build and template"
 
 
 def lean_kind(folder: Path) -> str:

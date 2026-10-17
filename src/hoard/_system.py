@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-import subprocess
 from typing import Optional
 
 from hoard._fold import Row
+from hoard.alfred import macos
 from hoard._rows import counted
 from hoard.contract import Kind
 
 SYSTEM_VERBS = {
-    "open": (("open",), "Opened"),
-    "reveal": (("open", "-R"), "Revealed"),
+    "open": (macos.open, "Opened"),
+    "reveal": (macos.reveal, "Revealed"),
 }
 
 
@@ -33,8 +33,8 @@ def report(kind: Kind, past: str, verb: str, titles: list) -> str:
 
 
 def hand_over(kind: Kind, rows: list, verb: str) -> str:
-    command, past = SYSTEM_VERBS[verb]
+    hand, past = SYSTEM_VERBS[verb]
     targets = reachable_locators(rows)
     for _, locator in targets:
-        subprocess.run([*command, locator], check=False)
+        hand(locator)
     return report(kind, past, verb, [title for title, _ in targets])
