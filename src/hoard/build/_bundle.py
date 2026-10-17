@@ -49,12 +49,28 @@ def versions(repo: Path, kind: str) -> dict:
     return {"hoard": hoard.__version__, kind: kind_version(repo)}
 
 
-def write_static(target: Path, repo: Path, workflow: Workflow) -> None:
+IDENTITY = ("name", "bundleid", "description", "createdby")
+
+
+def stamped(repo: Path, workflow: Workflow) -> dict:
+    with open(repo / workflow.plist, "rb") as handle:
+        plist = plistlib.load(handle)
+    plist.update({key: value for key in IDENTITY if (value := getattr(workflow, key))})
+    plist["version"] = kind_version(repo)
+    return plist
+
+
+def generated(repo: Path, workflow: Workflow) -> dict:
     facts = kind_facts(repo, workflow.kind)
-    plist = info_plist(workflow, facts.keyword, kind_version(repo), facts.roles)
+    return info_plist(workflow, facts.keyword, kind_version(repo), facts.roles)
+
+
+def write_static(target: Path, repo: Path, workflow: Workflow) -> None:
+    plist = stamped(repo, workflow) if workflow.handmade else generated(repo, workflow)
     with open(target / "info.plist", "wb") as handle:
         plistlib.dump(plist, handle)
-    (target / "hoard.py").write_text(ENTRY.format(kind=workflow.kind), encoding="utf-8")
+    if not workflow.handmade:
+        (target / "hoard.py").write_text(ENTRY.format(kind=workflow.kind), encoding="utf-8")
     (target / "version.json").write_text(json.dumps(versions(repo, workflow.kind), indent=2) + "\n", encoding="utf-8")
 
 
@@ -65,18 +81,24 @@ def skip_development(folder: str, names: list) -> set:
     return ignored
 
 
-def copy_assets(repo: Path, target: Path) -> None:
-    assets = repo / "workflow"
-    shutil.copyfile(assets / "icon.png", target / "icon.png")
-    if (assets / "icons").is_dir():
-        shutil.copytree(assets / "icons", target / "icons")
+def asset_paths(repo: Path, workflow: Workflow) -> list:
+    standard = [repo / "workflow" / "icon.png", repo / "workflow" / "icons"]
+    return [path for path in standard + [repo / asset for asset in workflow.assets] if path.exists()]
+
+
+def copy_asset(source: Path, target: Path) -> None:
+    if source.is_dir():
+        shutil.copytree(source, target / source.name)
+    else:
+        shutil.copyfile(source, target / source.name)
 
 
 def stage(repo: Path, workflow: Workflow, target: Path) -> None:
     write_static(target, repo, workflow)
-    copy_assets(repo, target)
+    for asset in asset_paths(repo, workflow):
+        copy_asset(asset, target)
     shutil.copytree(library_package(), target / "hoard", ignore=skip_development)
-    shutil.copytree(repo / workflow.kind, target / workflow.kind, ignore=skip_development)
+    shutil.copytree(workflow.package(repo), target / workflow.kind, ignore=skip_development)
 
 
 def zip_folder(folder: Path, archive_path: Path) -> None:

@@ -191,3 +191,74 @@ def test_the_template_kind_is_asked_for_an_embeddings_server(repo):
     assert hoard_variables(plist) == ["hoard_embeddings_url", "hoard_embeddings_key", "hoard_ask_on_update"], (
         "a kind with the default text like should be offered the embeddings server"
     )
+
+
+HANDMADE = """
+kind = "tiny"
+name = "Tiny"
+bundleid = "com.example.tiny"
+description = "A workflow on the toolkit alone"
+createdby = "Someone"
+plist = "workflow/info.plist"
+source = "src"
+assets = ["workflow/view"]
+"""
+
+CANVAS = {
+    "bundleid": "old.id",
+    "name": "Old",
+    "version": "0",
+    "objects": [{"type": "alfred.workflow.input.scriptfilter", "uid": "A", "config": {"script": '/usr/bin/python3 -m tiny filter "$1"'}}],
+    "connections": {},
+}
+
+
+@pytest.fixture
+def handmade(tmp_path):
+    root = tmp_path / "tiny"
+    (root / "src" / "tiny").mkdir(parents=True)
+    (root / "src" / "tiny" / "__init__.py").write_text("from hoard.alfred.text import fold\n")
+    (root / "workflow").mkdir()
+    (root / "workflow" / "plist.toml").write_text(HANDMADE)
+    (root / "workflow" / "icon.png").write_bytes(b"png")
+    (root / "workflow" / "view").write_text("#!/bin/sh\n")
+    with open(root / "workflow" / "info.plist", "wb") as handle:
+        plistlib.dump(CANVAS, handle)
+    (root / "pyproject.toml").write_text('[project]\nname = "tiny"\nversion = "0.3.0"\n')
+    return root
+
+
+def test_a_handmade_canvas_is_stamped_not_generated(handmade):
+    with zipfile.ZipFile(build.bundle(handmade)) as archive:
+        plist = plistlib.loads(archive.read("info.plist"))
+    assert [o["type"] for o in plist["objects"]] == ["alfred.workflow.input.scriptfilter"], "the canvas is the one in workflow/info.plist"
+    assert (plist["bundleid"], plist["name"], plist["version"], plist["createdby"]) == ("com.example.tiny", "Tiny", "0.3.0", "Someone"), (
+        "identity and version come from plist.toml and pyproject, whatever the canvas said"
+    )
+
+
+def test_a_toolkit_bundle_vendors_the_package_from_its_source_folder_with_its_assets(handmade):
+    path = build.bundle(handmade)
+    with zipfile.ZipFile(path) as archive:
+        names = set(archive.namelist())
+    assert {"info.plist", "icon.png", "view", "version.json", "tiny/__init__.py", "hoard/alfred/text.py"} <= names, (
+        "the plist, icon, assets, the package and the library ship together"
+    )
+    assert "hoard.py" not in names, "a hand-made canvas calls its package itself, so there is no kernel entry script"
+
+
+def test_check_imports_a_toolkit_workflows_package_from_the_bundle(handmade):
+    assert build.check(handmade) == "ok: tiny imports", "the bundle should import its package on the system python"
+
+
+def test_check_fails_when_a_toolkit_package_does_not_import(handmade):
+    (handmade / "src" / "tiny" / "__init__.py").write_text("import nothing_of_the_sort\n")
+    with pytest.raises(build.BuildError, match="nothing_of_the_sort"):
+        build.check(handmade)
+
+
+def test_link_installs_a_toolkit_workflow_by_symlink(handmade, tmp_path):
+    installed = build.link(handmade, into=tmp_path / "workflows")
+    assert (installed / "tiny").resolve() == handmade / "src" / "tiny", "the package links to its source folder"
+    assert (installed / "view").resolve() == handmade / "workflow" / "view", "assets link too"
+    assert plistlib.loads((installed / "info.plist").read_bytes())["bundleid"] == "com.example.tiny", "the stamped plist is written"

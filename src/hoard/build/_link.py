@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from pathlib import Path
 from typing import Optional
 
-from hoard.build._bundle import library_package, write_static
+from hoard.build._bundle import asset_paths, library_package, write_static
 from hoard.build._workflow import BuildError, read_workflow
 
 ALFRED = Path("~/Library/Application Support/Alfred").expanduser()
@@ -24,6 +25,8 @@ def alfred_workflows_folder() -> Path:
 def replace_symlink(link: Path, target: Path) -> None:
     if link.is_symlink() or link.is_file():
         link.unlink()
+    elif link.is_dir():
+        shutil.rmtree(link)
     os.symlink(target, link)
 
 
@@ -34,8 +37,7 @@ def link(repo=".", into: Optional[Path] = None) -> Path:
     installed.mkdir(parents=True, exist_ok=True)
     write_static(installed, repo, workflow)
     replace_symlink(installed / "hoard", library_package())
-    replace_symlink(installed / workflow.kind, repo / workflow.kind)
-    replace_symlink(installed / "icon.png", repo / "workflow" / "icon.png")
-    if (repo / "workflow" / "icons").is_dir():
-        replace_symlink(installed / "icons", repo / "workflow" / "icons")
+    replace_symlink(installed / workflow.kind, workflow.package(repo))
+    for asset in asset_paths(repo, workflow):
+        replace_symlink(installed / asset.name, asset)
     return installed

@@ -29,6 +29,16 @@ class Workflow:
     description: str = ""
     createdby: str = ""
     configuration: tuple = ()
+    plist: str = ""
+    source: str = "."
+    assets: tuple = ()
+
+    @property
+    def handmade(self) -> bool:
+        return bool(self.plist)
+
+    def package(self, repo: Path) -> Path:
+        return Path(repo) / self.source / self.kind
 
 
 def read_toml(path: Path) -> dict:
@@ -46,7 +56,8 @@ def read_setting(entry: dict) -> Setting:
 def read_workflow(repo) -> Workflow:
     data = read_toml(Path(repo) / "workflow" / "plist.toml")
     settings = tuple(read_setting(entry) for entry in data.pop("configuration", []))
-    return Workflow(configuration=settings, **data)
+    assets = tuple(data.pop("assets", []))
+    return Workflow(configuration=settings, assets=assets, **data)
 
 
 def kind_version(repo) -> str:

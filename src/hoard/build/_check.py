@@ -9,7 +9,7 @@ import zipfile
 from pathlib import Path
 
 from hoard.build._bundle import bundle
-from hoard.build._workflow import BuildError
+from hoard.build._workflow import BuildError, Workflow, read_workflow
 
 EXPECTED = "Index is empty"
 
@@ -40,13 +40,33 @@ def answer_empty_query(workflow_folder: Path, scratch: Path) -> list:
     return titles(finished.stdout)
 
 
+def import_package(workflow: Workflow, workflow_folder: Path, scratch: Path) -> str:
+    finished = subprocess.run(
+        [sys.executable, "-I", "-c", f"import sys; sys.path.insert(0, {str(workflow_folder)!r}); import {workflow.kind}"],
+        cwd=workflow_folder,
+        env=bundle_environment(scratch),
+        capture_output=True,
+        text=True,
+    )
+    if finished.returncode != 0:
+        raise BuildError(f"the bundle cannot import {workflow.kind}:\n{finished.stderr}")
+    return f"ok: {workflow.kind} imports"
+
+
+def answers(workflow_folder: Path, scratch: Path) -> str:
+    answered = answer_empty_query(workflow_folder, scratch)
+    if EXPECTED not in answered:
+        raise BuildError(f"an empty database should answer {EXPECTED!r}, got {answered!r}")
+    return f"ok: {EXPECTED}"
+
+
 def check(repo=".") -> str:
+    workflow = read_workflow(Path(repo).resolve())
     archive_path = bundle(repo)
     with tempfile.TemporaryDirectory() as scratch:
         workflow_folder = Path(scratch) / "workflow"
         with zipfile.ZipFile(archive_path) as archive:
             archive.extractall(workflow_folder)
-        answered = answer_empty_query(workflow_folder, Path(scratch))
-    if EXPECTED not in answered:
-        raise BuildError(f"an empty database should answer {EXPECTED!r}, got {answered!r}")
-    return f"ok: {EXPECTED}"
+        if workflow.handmade:
+            return import_package(workflow, workflow_folder, Path(scratch))
+        return answers(workflow_folder, Path(scratch))
