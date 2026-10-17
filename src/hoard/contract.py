@@ -24,10 +24,12 @@ KERNEL_VERBS = frozenset(
         "standardize",
         "keep_apart",
         "pick_standard",
+        "empty_trash",
     }
 )
 KERNEL_COMMANDS = frozenset({"update", "undo", "rnd", "stats", "fix", "model", "name", "tag", "retag", "like", "std"})
 TAGS = "tags"
+TRASH = ".hoard-trash"
 STEP_VERBS = frozenset({"move", "trash", "copy"})
 COMMAND_VERBS = frozenset({"open", "reveal"})
 LABELS = frozenset({"one", "many"})

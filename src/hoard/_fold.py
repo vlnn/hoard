@@ -26,6 +26,15 @@ def under(locator: str, root: str) -> bool:
     return locator == root or locator.startswith(root.rstrip(os.sep) + os.sep)
 
 
+def real_roots(ctx: Context) -> list:
+    return [os.path.realpath(root) for roots in ctx.roots.values() for root in roots]
+
+
+def ground_of(kind: Kind, ctx: Context) -> list:
+    wider = [os.path.realpath(folder) for folder in kind.ground(ctx)] if kind.ground else []
+    return wider + real_roots(ctx)
+
+
 def prefixes(mounted: dict) -> dict:
     return {storage: tuple(root.rstrip(os.sep) + os.sep for root in roots) for storage, roots in mounted.items()}
 

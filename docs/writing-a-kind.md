@@ -211,7 +211,9 @@ of the folder is as it was, and again on undo with the way back.
 
 Books proposes canonical names on the device, escorts a book's `.sdr` folder, and trashes
 byte-identical duplicates and junk such as `._*` files. `bk fix` lists the steps under "Apply N";
-`python3 -m hoard books plan` prints them without touching anything.
+`python3 -m hoard books plan` prints them without touching anything. While `.hoard-trash/` holds
+anything, `bk fix` ends with an *Empty the trash* row: what it holds, its size, and that this one
+cannot be undone.
 
 Compare file names after `unicodedata.normalize("NFC", …)`: macOS lists names decomposed, and a
 name that differs only in that form would otherwise be renamed on every run.

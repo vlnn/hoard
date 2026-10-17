@@ -218,3 +218,8 @@ of that, in `_steps`, and kinds reach it through `api.carry_out(kind, steps, ctx
   sidecar two books share say, what stays.
 - `_plan` keeps only what a keystroke needs (encoding and describing steps); `_steps` and its
   `shutil` and `filecmp` load on an action.
+
+1.8.1: `fix` ends with an *Empty the trash* row while `.hoard-trash/` under any ground folder holds
+something; the `empty_trash` verb (reserved) removes those folders and records no batch. Trash
+stays hidden from the device, which keeps a reader's library clean, and this row is how it is
+emptied without showing hidden files in Finder. `TRASH` is exported from the contract.

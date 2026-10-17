@@ -4,7 +4,7 @@ import sqlite3
 import time
 
 import hoard
-from hoard import _db, _fold, _journal, _models, _plan, _rows, _search
+from hoard import _db, _fold, _journal, _models, _plan, _rows, _search, _trash
 from hoard.contract import Command, Context, Kind, everything
 from hoard.items import Head, Item
 
@@ -88,13 +88,22 @@ def step_item(step) -> Item:
     return Item(_plan.encode(step), _plan.step_title(step), _plan.step_subtitle(step), locator=step.before, verb="apply")
 
 
+def trash_rows(kind, ctx) -> tuple:
+    count, size = _trash.contents(kind, ctx)
+    if not count:
+        return ()
+    detail = f"{plural(count, 'item')} · {_trash.human(size)} · cannot be undone"
+    return (Head("trash", "Empty the trash", detail, verb="empty_trash"),)
+
+
 def fix_rows(con, kind, ctx, words) -> tuple:
     typed = " ".join(words)
     steps = plan_for(con, kind, ctx, typed)
+    trash = trash_rows(kind, ctx)
     if not steps:
-        return (Head("none", "Nothing to fix"),)
+        return trash or (Head("none", "Nothing to fix"),)
     head = Head("plan", f"Apply {len(steps)}", "↩ runs every step below", verb="apply", arg=f"plan:{typed.lower()}")
-    return (head,) + tuple(step_item(step) for step in steps[: _search.LIMIT])
+    return (head,) + tuple(step_item(step) for step in steps[: _search.LIMIT]) + trash
 
 
 KERNEL_COMMANDS = {"update": update_rows, "undo": undo_rows, "rnd": rnd_rows, "stats": stats_rows, "fix": fix_rows}

@@ -7,9 +7,9 @@ import sys
 import unicodedata
 from typing import Optional, Sequence
 
-from hoard._fold import under
-from hoard._plan import MOVES, TRASH, describe
-from hoard.contract import STEP_VERBS, Change, Context, Kind, Step
+from hoard._fold import ground_of, real_roots, under
+from hoard._plan import MOVES, describe
+from hoard.contract import STEP_VERBS, TRASH, Change, Context, Kind, Step
 
 RENAMING = ".hoard-renaming"
 
@@ -17,15 +17,6 @@ RENAMING = ".hoard-renaming"
 def settled(path: str) -> Optional[str]:
     folder, name = os.path.split(path)
     return None if name in ("", ".", "..") else os.path.join(os.path.realpath(folder), name)
-
-
-def real_roots(ctx: Context) -> list:
-    return [os.path.realpath(root) for roots in ctx.roots.values() for root in roots]
-
-
-def ground_of(kind: Kind, ctx: Context) -> list:
-    wider = [os.path.realpath(folder) for folder in kind.ground(ctx)] if kind.ground else []
-    return wider + real_roots(ctx)
 
 
 def root_of(path: str, ground: Sequence[str]) -> Optional[str]:

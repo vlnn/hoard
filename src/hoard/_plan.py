@@ -3,9 +3,8 @@ from __future__ import annotations
 import json
 import os
 
-from hoard.contract import Change, Step
+from hoard.contract import TRASH, Change, Step
 
-TRASH = ".hoard-trash"
 PREFIX = "step:"
 MOVES = frozenset({"move", "trash"})
 ARRIVALS = frozenset({"move", "copy"})

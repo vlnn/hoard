@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from hoard import _plan, _steps, api, cli
+from hoard import _fold, _plan, _steps, api, cli
 from hoard.contract import Context, Step
 from hoard.render import text
 from hoard.testing import FakeKind
@@ -65,7 +65,7 @@ def test_applying_the_plan_then_undoing_restores_the_tree_to_the_byte(messy, she
     before = tree(shelf, satchel)
     assert api.act(FakeKind, "apply", ["plan:"], messy) == "Fixed 2 items", "apply should count what it did"
     assert sorted(os.listdir(shelf)) == [".hoard-trash", "Dune.note", "Ubik.note"], "the plan should be carried out"
-    assert lines(messy) == ["» Nothing to fix"], "after applying, the plan should be empty"
+    assert lines(messy) == ["» Empty the trash | 1 item · 11 B · cannot be undone"], "after applying, only the trash is left to deal with"
     assert api.act(FakeKind, "undo", [], messy) == "Undid Fix", "the whole plan should undo as one batch"
     assert tree(shelf, satchel) == before, "undo should restore every byte and name"
     assert not (shelf / ".hoard-trash").exists(), "undo should not leave an empty trash folder behind"
@@ -151,7 +151,7 @@ def test_a_target_that_is_the_same_file_is_not_a_conflict(tmp_path):
 
 def test_context_roots_decide_where_a_path_belongs(tmp_path):
     ctx = Context(data="", cache="", roots={"shelf": (str(tmp_path / "shelf"),)})
-    ground = _steps.ground_of(FakeKind, ctx)
+    ground = _fold.ground_of(FakeKind, ctx)
     assert _steps.root_of(str(tmp_path / "shelf" / "a" / "b"), ground) == str(tmp_path / "shelf"), "inside a root"
     assert _steps.root_of(str(tmp_path / "shelfish" / "b"), ground) is None, "a sibling with a shared prefix is outside"
 
@@ -159,7 +159,7 @@ def test_context_roots_decide_where_a_path_belongs(tmp_path):
 def test_a_kinds_ground_widens_where_a_step_may_land(tmp_path):
     ctx = Context(data="", cache="", roots={"shelf": (str(tmp_path / "device" / "shelf"),)})
     kind = FakeKind._replace(ground=lambda ctx: [str(tmp_path / "device")])
-    ground = _steps.ground_of(kind, ctx)
+    ground = _fold.ground_of(kind, ctx)
     assert _steps.root_of(str(tmp_path / "device" / "trash" / "b"), ground) == str(tmp_path / "device"), (
         "a kind whose storages share one tree may name that tree as its ground"
     )

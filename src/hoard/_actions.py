@@ -19,6 +19,7 @@ from hoard import (
     _suggest,
     _system,
     _tags,
+    _trash,
 )
 from hoard.contract import Context, Kind, Verb
 
@@ -233,6 +234,8 @@ def dispatch(con: sqlite3.Connection, kind: Kind, ctx: Context, verb: str, ids) 
         return undo_last(con, kind, ctx)
     if verb == "apply":
         return apply_plan(con, kind, ctx, ids)
+    if verb == "empty_trash":
+        return f"Emptied the trash: {_commands.plural(_trash.empty(kind, ctx), 'item')}"
     if verb == "use_model":
         return use_model(con, ids)
     if verb == "accept":
