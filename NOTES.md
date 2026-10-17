@@ -196,3 +196,25 @@ that layer, moved out from under the kernel rather than written again:
 
 1.7.1: assets keep their mode in the bundle (a Text View's script file must be executable), and
 `py.typed` ships so a workflow's mypy reads the toolkit's annotations.
+
+## 1.8.0: one executor for every step
+
+Kobold had written its own file mover beside the kernel's, 324 lines with a journal of its own,
+because the kernel's would not do what an e-reader needs: a book moves between a nook and a vault
+that are different storages, duplicates it meets are deleted rather than skipped, folders keep the
+case the plan spells, and a `.sdr` sidecar travels with its book. The kernel's executor now does all
+of that, in `_steps`, and kinds reach it through `api.carry_out(kind, steps, ctx)` and
+`api.restore(kind, changes, ctx)`, so a verb that moves files plans `Step`s and lets hoard act:
+
+- `copy` is a third step verb: a file copied into a root, undone by removing the copy.
+- A step lands under any storage root, or under the kind's `ground(ctx)` as well when it names
+  one — the device root for kobold, whose `_trash/` and new genre folders are no storage.
+- The source is found by its on-disk spelling (NFC or NFD, either case); the target's existing
+  parents are respelled to the step's case, and undo respells them back.
+- A move onto identical bytes, or of an empty folder onto an existing one, removes the source and
+  records a `delete`; undo copies it back from what was kept.
+- `Kind.escort(before, after, ctx)` runs right after each move and each undone move, while the
+  other files are where they were, so a kind moves what belongs beside a file and decides, with a
+  sidecar two books share say, what stays.
+- `_plan` keeps only what a keystroke needs (encoding and describing steps); `_steps` and its
+  `shutil` and `filecmp` load on an action.

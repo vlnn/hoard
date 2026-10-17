@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import os
-import shutil
 from typing import Optional
 
 from hoard.contract import Change, Command, Entity, Kind, Plan, Step, Storage, Verb, lines_from, roots_from
@@ -56,31 +55,25 @@ def evidence(entity: Entity) -> str:
     return "\n".join((entity.title, *entity.fields[:2], entity.text))
 
 
-def packing_target(found, satchel_root: str) -> Optional[tuple]:
+def packing_step(found, satchel_root: str) -> Optional[Step]:
     source = found.locator_in("shelf")
     if found.on("satchel") or source is None:
         return None
-    target = os.path.join(satchel_root, os.path.basename(source))
-    return None if os.path.exists(target) else (source, target)
+    return Step("copy", found.entity.id, source, os.path.join(satchel_root, os.path.basename(source)), "packed")
 
 
 def pack(founds, ctx) -> list:
+    from hoard import api
+
     roots = ctx.roots_of("satchel")
-    if not roots:
-        return []
-    changes = []
-    for found in founds:
-        paths = packing_target(found, roots[0])
-        if paths:
-            os.makedirs(roots[0], exist_ok=True)
-            shutil.copyfile(*paths)
-            changes.append(Change(found.entity.id, "copy", *paths))
-    return changes
+    steps = [step for found in founds for step in [packing_step(found, roots[0])] if step] if roots else []
+    return api.carry_out(KIND, steps, ctx)
 
 
 def unpack(changes, ctx) -> None:
-    for change in changes:
-        os.remove(change.after)
+    from hoard import api
+
+    api.restore(KIND, changes, ctx)
 
 
 def toss(founds, ctx) -> list:

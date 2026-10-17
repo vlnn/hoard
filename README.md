@@ -25,7 +25,7 @@ standard library only.
 | `hoard.alfred.apple` | `respond` through the on-device model; `AppleError` is a `ModelError` |
 | `hoard.alfred.macos` | `open`, `reveal`, `trash`, `copy`, `notify` |
 | `hoard.contract` | `Kind`, `Storage`, `Entity`, `Sighting`, `Found`, `Verb`, `Command`, `Change`, `Plan`, `Step`, `Context`, `TextEmbedding`, `LocalVectors`, `roots_from`, `lines_from`, `lazy` |
-| `hoard.api` | `filter(kind, typed)`, `act(kind, verb, ids)`, `update(kind)`, `plan(kind)`, `ask(kind)`, `embed(kind)`, `doctor(kind)` |
+| `hoard.api` | `filter(kind, typed)`, `act(kind, verb, ids)`, `update(kind)`, `plan(kind)`, `carry_out(kind, steps, ctx)`, `restore(kind, changes, ctx)`, `ask(kind)`, `embed(kind)`, `doctor(kind)` |
 | `hoard.testing` | the conformance suite (`Conformance`), `FakeKind`, `make_epub`, `make_fb2`, fixtures `temp_tree`, `context_with` |
 | `hoard.build` | `python3 -m hoard.build [--check \| --link]` from a workflow repository |
 

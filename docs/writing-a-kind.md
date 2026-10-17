@@ -140,28 +140,31 @@ A verb is `Verb(label, run, undo)`. `run(founds, ctx)` does the work and returns
 `undo(changes, ctx)` receives the same records back. `ctx.roots_of("device")` gives that storage's
 folders.
 
+A verb that moves, copies or trashes files does not touch the disk itself: it describes each
+change as a `Step(verb, id, before, after, reason)` and hands the steps to `api.carry_out`, which
+carries them out the way `fix` does (section 7) and returns the changes to record; `api.restore`
+undoes them.
+
 ```python
+from hoard import api
+from hoard.contract import Step
+
+
 def copy_in(founds, ctx):
     roots = ctx.roots_of("device")
-    if not roots:
-        return []
-    changes = []
-    for found in founds:
-        paths = copy_target(found, roots[0])
-        if paths:
-            shutil.copyfile(*paths)
-            changes.append(Change(found.entity.id, "copy", *paths))
-    return changes
+    steps = [Step("copy", found.entity.id, *copy_target(found, roots[0]), "copied in") for found in founds if roots]
+    return api.carry_out(KIND, steps, ctx)
 
 
 def remove_copies(changes, ctx):
-    for change in changes:
-        os.remove(change.after)
+    api.restore(KIND, changes, ctx)
 ```
 
 hoard writes the changes to the journal as one batch, re-indexes, and shows `Copy to the device: Dune`
 as the notification. `bk undo` reverses the newest batch. A verb with `undo=None` is marked
-*cannot be undone* and is skipped by undo. A verb that returns no changes records nothing.
+*cannot be undone* and is skipped by undo. A verb that returns no changes records nothing. A verb
+that changes something other than files, a tag written into the file say, returns its own
+`Change`s next to the ones `carry_out` returned and undoes those itself before calling `restore`.
 
 ## 6. Commands
 
@@ -183,16 +186,32 @@ Two or more letters of a command, with nothing after them, put a row per matchin
 ## 7. Plans: `fix`
 
 `lint(founds, ctx)` returns a `Plan` of `Step(verb, id, before, after, reason)`. A kind proposes; hoard
-carries out. There are two step verbs:
+carries out. There are three step verbs:
 
-- `move`: rename or move a file or folder within one storage root;
-- `trash`: move it into `.hoard-trash/` at that root, keeping its relative path.
+- `move`: rename or move a file or folder; `after` is where it goes;
+- `copy`: copy a file; `after` is the copy;
+- `trash`: move it into `.hoard-trash/` at its root, keeping its relative path.
 
-Books proposes canonical names on the device, moves a book's KOReader `.sdr` folder with it, and
-trashes byte-identical duplicates and junk such as `._*` files. `bk fix` lists the steps under
-"Apply N"; `python3 -m hoard books plan` prints them without touching anything. A step whose target
-exists or whose paths are outside every storage is skipped and counted. An apply is one journal
-batch, and `undo` restores every byte and folder.
+A step starts inside a storage root and lands inside one; a step that would leave the storages is
+skipped. A kind whose storages share one tree, an e-reader with a reading folder and a shelf of
+genre folders say, names that tree as `Kind.ground(ctx) -> folders`, and its steps may start and
+land anywhere under it as well, in a `_trash/` of its own for instance.
+
+hoard carries a step out carefully: it finds the source by its spelling on disk even when the step
+spells it in another Unicode form or case; it creates the target's folders and respells existing
+ones to the step's case; a move whose target already holds the same bytes (or an empty folder where
+one exists) removes the source instead and records a `delete`, which undo brings back from the
+kept copy; a move onto a different file, a copy onto any file, and anything else that would
+overwrite is skipped and counted. Every step is one `Change` in the journal, and `undo` restores
+every byte, name and folder.
+
+Things that travel with a file, KOReader's `.sdr` folder beside a book say, are the kind's to
+move: `Kind.escort(before, after, ctx)` is called right after each move or trash, while the rest
+of the folder is as it was, and again on undo with the way back.
+
+Books proposes canonical names on the device, escorts a book's `.sdr` folder, and trashes
+byte-identical duplicates and junk such as `._*` files. `bk fix` lists the steps under "Apply N";
+`python3 -m hoard books plan` prints them without touching anything.
 
 Compare file names after `unicodedata.normalize("NFC", …)`: macOS lists names decomposed, and a
 name that differs only in that form would otherwise be renamed on every run.

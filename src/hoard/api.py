@@ -68,6 +68,18 @@ def plan(kind: Kind, typed: str = "", ctx: Optional[Context] = None) -> list:
         con.close()
 
 
+def carry_out(kind: Kind, steps, ctx: Context) -> list:
+    from hoard import _steps
+
+    return _steps.carry_out(steps, kind, ctx)
+
+
+def restore(kind: Kind, changes, ctx: Context) -> None:
+    from hoard import _steps
+
+    _steps.undo_changes(changes, kind, ctx)
+
+
 def ask(kind: Kind, ctx: Optional[Context] = None, questions: Optional[list] = None) -> int:
     from hoard import _ask
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from hoard import _plan, api, cli
+from hoard import _plan, _steps, api, cli
 from hoard.contract import Context, Step
 from hoard.render import text
 from hoard.testing import FakeKind
@@ -93,11 +93,11 @@ def test_the_trash_keeps_the_relative_path_and_never_overwrites(ctx, shelf):
     (shelf / "deep").mkdir()
     (shelf / "deep" / "a.tmp").write_bytes(b"one")
     root = str(shelf)
-    first = _plan.trash_path(str(shelf / "deep" / "a.tmp"), root)
+    first = _steps.trash_path(str(shelf / "deep" / "a.tmp"), root)
     assert first == os.path.join(root, ".hoard-trash", "deep", "a.tmp"), "the trash mirrors the storage"
     os.makedirs(os.path.dirname(first))
     Path(first).write_bytes(b"older")
-    assert _plan.trash_path(str(shelf / "deep" / "a.tmp"), root) == os.path.join(root, ".hoard-trash", "deep", "a (2).tmp"), (
+    assert _steps.trash_path(str(shelf / "deep" / "a.tmp"), root) == os.path.join(root, ".hoard-trash", "deep", "a (2).tmp"), (
         "a second trashing of the same name should not overwrite the first"
     )
 
@@ -117,14 +117,14 @@ def test_a_path_outside_every_storage_is_never_touched(ctx, tmp_path):
     outside = tmp_path / "elsewhere.tmp"
     outside.write_bytes(b"x")
     ctx = api.context(FakeKind, ctx)
-    assert _plan.apply_step(Step("trash", "", str(outside), None, "junk"), ctx) is None, "only storage files move"
+    assert _steps.apply_step(Step("trash", "", str(outside), None, "junk"), ctx) is None, "only storage files move"
     assert outside.exists(), "a file outside the storages should stay put"
 
 
 def test_unknown_step_verbs_are_skipped(ctx, shelf):
     path = write_note(shelf, "dune", "Dune")
     ctx = api.context(FakeKind, ctx)
-    assert _plan.apply_step(Step("shred", "id", path, None, "?"), ctx) is None, "only move and trash are known"
+    assert _steps.apply_step(Step("shred", "id", path, None, "?"), ctx) is None, "only move and trash are known"
 
 
 def test_the_cli_prints_the_plan_without_applying_it(messy, shelf, capsys, monkeypatch):
@@ -144,24 +144,34 @@ def test_a_target_that_is_the_same_file_is_not_a_conflict(tmp_path):
     original = tmp_path / "dune.note"
     original.write_text("x")
     os.link(original, tmp_path / "alias.note")
-    assert not _plan.blocked(str(original), str(tmp_path / "alias.note")), (
+    assert not _steps.blocked(str(original), str(tmp_path / "alias.note")), (
         "a target that is the same file, as a case-only rename is on macOS, must not block the move"
     )
 
 
 def test_context_roots_decide_where_a_path_belongs(tmp_path):
     ctx = Context(data="", cache="", roots={"shelf": (str(tmp_path / "shelf"),)})
-    assert _plan.root_of(str(tmp_path / "shelf" / "a" / "b"), ctx) == str(tmp_path / "shelf"), "inside a root"
-    assert _plan.root_of(str(tmp_path / "shelfish" / "b"), ctx) is None, "a sibling with a shared prefix is outside"
+    ground = _steps.ground_of(FakeKind, ctx)
+    assert _steps.root_of(str(tmp_path / "shelf" / "a" / "b"), ground) == str(tmp_path / "shelf"), "inside a root"
+    assert _steps.root_of(str(tmp_path / "shelfish" / "b"), ground) is None, "a sibling with a shared prefix is outside"
+
+
+def test_a_kinds_ground_widens_where_a_step_may_land(tmp_path):
+    ctx = Context(data="", cache="", roots={"shelf": (str(tmp_path / "device" / "shelf"),)})
+    kind = FakeKind._replace(ground=lambda ctx: [str(tmp_path / "device")])
+    ground = _steps.ground_of(kind, ctx)
+    assert _steps.root_of(str(tmp_path / "device" / "trash" / "b"), ground) == str(tmp_path / "device"), (
+        "a kind whose storages share one tree may name that tree as its ground"
+    )
 
 
 def test_a_folder_moves_and_undoes_like_a_file(ctx, shelf):
     (shelf / "dune.sdr").mkdir()
     (shelf / "dune.sdr" / "metadata.lua").write_text("progress")
     ctx = api.context(FakeKind, ctx)
-    change = _plan.apply_step(Step("move", "id", str(shelf / "dune.sdr"), str(shelf / "Dune.sdr"), "sidecar"), ctx)
+    change = _steps.apply_step(Step("move", "id", str(shelf / "dune.sdr"), str(shelf / "Dune.sdr"), "sidecar"), ctx)
     assert (shelf / "Dune.sdr" / "metadata.lua").read_text() == "progress", "a folder should move whole"
-    _plan.undo_changes([change], ctx)
+    _steps.undo_changes([change], FakeKind, ctx)
     assert (shelf / "dune.sdr" / "metadata.lua").read_text() == "progress", "and come back whole"
 
 
@@ -169,7 +179,7 @@ def test_a_folder_emptied_by_a_step_goes_and_comes_back_with_undo(ctx, shelf):
     (shelf / "copies").mkdir()
     (shelf / "copies" / "a.tmp").write_bytes(b"x")
     ctx = api.context(FakeKind, ctx)
-    change = _plan.apply_step(Step("trash", "", str(shelf / "copies" / "a.tmp"), None, "junk"), ctx)
+    change = _steps.apply_step(Step("trash", "", str(shelf / "copies" / "a.tmp"), None, "junk"), ctx)
     assert not (shelf / "copies").exists(), "a folder left empty by a step should be removed"
-    _plan.undo_changes([change], ctx)
+    _steps.undo_changes([change], FakeKind, ctx)
     assert (shelf / "copies" / "a.tmp").read_bytes() == b"x", "undo should recreate the folder and the file"

@@ -15,6 +15,7 @@ from hoard import (
     _rows,
     _search,
     _standards,
+    _steps,
     _suggest,
     _system,
     _tags,
@@ -62,12 +63,7 @@ def run_kind_verb(con: sqlite3.Connection, kind: Kind, ctx: Context, name: str, 
     return outcome(kind, verb, changed_titles(rows, changes))
 
 
-def plan_undo(con, changes, ctx) -> None:
-    _plan.undo_changes(changes, ctx)
-
-
 KERNEL_UNDO = {
-    "apply": plan_undo,
     "accept": _names.undo,
     "set_tag": _tags.undo,
     "accept_tags": _tags.undo,
@@ -80,7 +76,13 @@ def kind_undo(verb):
     return lambda con, changes, ctx: verb.undo(changes, ctx)
 
 
+def plan_undo(kind: Kind):
+    return lambda con, changes, ctx: _steps.undo_changes(changes, kind, ctx)
+
+
 def undoer(kind: Kind, verb_name: str):
+    if verb_name == "apply":
+        return _commands.KERNEL_LABELS[verb_name], plan_undo(kind)
     if verb_name in KERNEL_UNDO:
         return _commands.KERNEL_LABELS[verb_name], KERNEL_UNDO[verb_name]
     verb = kind.verbs.get(verb_name)
@@ -122,7 +124,7 @@ def fixed(changes: list, skipped: int) -> str:
 
 def apply_plan(con: sqlite3.Connection, kind: Kind, ctx: Context, ids) -> str:
     steps = steps_from(con, kind, ctx, ids)
-    changes = [change for change in (_plan.attempted(step, ctx) for step in steps) if change]
+    changes = _steps.carry_out(steps, kind, ctx)
     if changes:
         _journal.record(con, "apply", changes, undoable=True)
         con.commit()
