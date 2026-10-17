@@ -176,3 +176,20 @@ Kobold, the first kind outside this repository, is the reason for every change i
 - Update forgets what it saw under a root no longer configured, and asks for a storage's setting
   only when the setting is empty.
 - The running-update row reads "N of M checked", the total counted before the first file is read.
+
+## 1.7.0: the toolkit floor
+
+Two workflows outside this repository turned out to want the same bottom layer and nothing of the
+kernel: rows and their JSON, folding, settings, the macOS calls, a model client. `hoard.alfred` is
+that layer, moved out from under the kernel rather than written again:
+
+- `_http` is now `hoard.alfred.chat`, which also streams a chat completion (`stream`, `respond`)
+  and strips a thinking model's `<think>` block; `_oracle` and `_models` keep using `request`.
+- `hoard.alfred.apple` runs Apple Intelligence through a Swift helper compiled into the data folder
+  on first use; its `AppleError` is a `ModelError`, so one `except` covers both backends.
+- `_system` opens and reveals through `hoard.alfred.macos`; `_context` and `cli` read settings
+  through `hoard.alfred.settings`.
+- `hoard.build` bundles a workflow whose canvas is hand-made (`plist`, `source`, `assets` in
+  `plist.toml`); no kind is probed, no entry script written, and `--check` imports the package.
+- `test_imports` bans `hoard.alfred.chat`, `apple` and `macos` from the keystroke path like the
+  private modules they replaced, and `import hoard.alfred` is tested to load none of them.
