@@ -136,3 +136,11 @@ def test_a_follow_up_without_changes_still_reopens(ctx, dune, mocker):
     kind = with_verb(FakeKind, "browse", lambda founds, ctx: Outcome((), then="fk like"))
     assert api.act(kind, "browse", [entity_id], ctx) == "Browse: nothing to do", "no change should still be reported"
     assert run.call_args.args[0][-1].endswith('search "fk like"'), "Alfred should reopen even when nothing changed"
+
+
+def test_reopening_without_osascript_is_only_noted(ctx, dune, mocker, capsys):
+    mocker.patch("subprocess.run", side_effect=FileNotFoundError)
+    entity_id, _ = dune
+    kind = with_verb(FakeKind, "browse", lambda founds, ctx: Outcome((), then="fk like"))
+    assert api.act(kind, "browse", [entity_id], ctx) == "Browse: nothing to do", "a missing osascript should not fail the verb"
+    assert "fk like" in capsys.readouterr().err, "the wanted query should be noted on stderr"
