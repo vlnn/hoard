@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from typing import NamedTuple, Optional
 
 from hoard import (
     _commands,
@@ -11,7 +12,6 @@ from hoard import (
     _models,
     _names,
     _plan,
-    _requery,
     _rows,
     _search,
     _standards,
@@ -21,7 +21,7 @@ from hoard import (
     _tags,
     _trash,
 )
-from hoard.contract import Context, Kind, Verb
+from hoard.contract import Context, Kind, Verb, as_outcome
 
 BATCH = "batch:"
 HEAD = "head:"
@@ -54,14 +54,20 @@ def changed_titles(rows: list, changes) -> list:
     return [row.found.entity.title for row in rows if row.found.entity.id in changed]
 
 
-def run_kind_verb(con: sqlite3.Connection, kind: Kind, ctx: Context, name: str, ids) -> str:
+class Reply(NamedTuple):
+    message: str
+    then: Optional[str] = None
+
+
+def run_kind_verb(con: sqlite3.Connection, kind: Kind, ctx: Context, name: str, ids) -> Reply:
     verb, rows = kind.verbs[name], resolve(con, kind, ctx, ids)
-    changes = tuple(verb.run([row.found for row in rows], ctx))
+    result = as_outcome(verb.run([row.found for row in rows], ctx))
+    changes = tuple(result.changes)
     if changes:
         _journal.record(con, name, changes, verb.undoable)
         con.commit()
         _index.update(con, kind, ctx)
-    return outcome(kind, verb, changed_titles(rows, changes))
+    return Reply(outcome(kind, verb, changed_titles(rows, changes)), result.then)
 
 
 KERNEL_UNDO = {
@@ -210,24 +216,29 @@ def keep_apart(con, kind: Kind, ctx: Context, ids) -> str:
     return f"Kept apart: {', '.join(spellings)}" if spellings else "Nothing kept apart"
 
 
-def pick_standard(kind: Kind, ids) -> str:
-    _requery.reopen(f"{kind.keyword} std #{ids[0][len(_standards.ONE) :]} ")
-    return ""
+def pick_standard(kind: Kind, ids) -> Reply:
+    return Reply("", f"{kind.keyword} std #{ids[0][len(_standards.ONE) :]} ")
 
 
-def like(kind: Kind, ids) -> str:
-    _requery.reopen(f"{kind.keyword} like #{ids[0]}")
-    return ""
+def like(kind: Kind, ids) -> Reply:
+    return Reply("", f"{kind.keyword} like #{ids[0]}")
 
 
-def pick(kind: Kind, ids) -> str:
+def pick(kind: Kind, ids) -> Reply:
     given = ids[0] if ids else ""
     target = given[len("pick:") :] if given.startswith("pick:") else f"#{given}"
-    _requery.reopen(f"{kind.keyword} tag {target} ")
-    return ""
+    return Reply("", f"{kind.keyword} tag {target} ")
 
 
-def dispatch(con: sqlite3.Connection, kind: Kind, ctx: Context, verb: str, ids) -> str:
+def replied(result) -> Reply:
+    return result if isinstance(result, Reply) else Reply(result)
+
+
+def dispatch(con: sqlite3.Connection, kind: Kind, ctx: Context, verb: str, ids) -> Reply:
+    return replied(answered(con, kind, ctx, verb, ids))
+
+
+def answered(con: sqlite3.Connection, kind: Kind, ctx: Context, verb: str, ids):
     if verb in _system.SYSTEM_VERBS:
         return _system.hand_over(kind, resolve(con, kind, ctx, ids), verb)
     if verb == "undo":

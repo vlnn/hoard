@@ -7,6 +7,7 @@ import pytest
 
 from hoard import api
 from hoard.render import text
+from hoard.contract import Change, Outcome, Verb
 from hoard.testing import FakeKind
 from hoard.testing.fake import read_note, write_note
 
@@ -108,3 +109,30 @@ def test_a_verb_without_undo_is_flagged_and_skipped_by_undo(ctx, two_notes, satc
 
 def test_nothing_to_undo(ctx):
     assert api.act(FakeKind, "undo", [], ctx) == "Nothing to undo", "an empty journal should say so"
+
+
+def with_verb(kind, name, run):
+    return kind._replace(verbs={**kind.verbs, name: Verb(name.title(), run)})
+
+
+def test_a_verb_may_ask_alfred_to_reopen_afterwards(ctx, dune, mocker):
+    run = mocker.patch("subprocess.run")
+    entity_id, _ = dune
+    kind = with_verb(FakeKind, "shelve", lambda founds, ctx: Outcome([Change(entity_id, "shelve", None, None)], then="fk tag #1 "))
+    assert api.act(kind, "shelve", [entity_id], ctx) == "Shelve: Dune (cannot be undone)", "the message should still be reported"
+    assert run.call_args.args[0][-1].endswith('search "fk tag #1 "'), "Alfred should reopen at the verb's follow-up query"
+
+
+def test_a_verb_returning_plain_changes_reopens_nothing(ctx, dune, mocker):
+    run = mocker.patch("subprocess.run")
+    entity_id, _ = dune
+    assert api.act(FakeKind, "toss", [entity_id], ctx) == "Toss: Dune (cannot be undone)", "a plain list of changes should work as before"
+    run.assert_not_called()
+
+
+def test_a_follow_up_without_changes_still_reopens(ctx, dune, mocker):
+    run = mocker.patch("subprocess.run")
+    entity_id, _ = dune
+    kind = with_verb(FakeKind, "browse", lambda founds, ctx: Outcome((), then="fk like"))
+    assert api.act(kind, "browse", [entity_id], ctx) == "Browse: nothing to do", "no change should still be reported"
+    assert run.call_args.args[0][-1].endswith('search "fk like"'), "Alfred should reopen even when nothing changed"

@@ -166,6 +166,10 @@ as the notification. `bk undo` reverses the newest batch. A verb with `undo=None
 that changes something other than files, a tag written into the file say, returns its own
 `Change`s next to the ones `carry_out` returned and undoes those itself before calling `restore`.
 
+A verb that wants Alfred back afterwards returns `Outcome(changes, then="bk tag #<id> ")` instead of
+the bare changes: the kernel records the changes, posts the notification, and reopens Alfred at the
+`then` query. The tag picker, `std` and `like` use the same follow-up.
+
 ## 6. Commands
 
 A command is a first word that lists a subset with its own ↩:

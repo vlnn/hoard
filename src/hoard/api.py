@@ -55,9 +55,14 @@ def act(kind: Kind, verb: str, ids, ctx: Optional[Context] = None) -> str:
 
     con, ctx = opened(kind, ctx)
     try:
-        return _actions.dispatch(con, kind, ctx, verb, ids)
+        reply = _actions.dispatch(con, kind, ctx, verb, ids)
     finally:
         con.close()
+    if reply.then:
+        from hoard import _requery
+
+        _requery.reopen(reply.then)
+    return reply.message
 
 
 def plan(kind: Kind, typed: str = "", ctx: Optional[Context] = None) -> list:

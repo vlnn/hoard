@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib
 import os
 from types import MappingProxyType
-from typing import Any, Callable, Mapping, NamedTuple, Optional, Sequence
+from typing import Any, Callable, Mapping, NamedTuple, Optional, Sequence, Union
 
 NOTHING = MappingProxyType({})
 KERNEL_VERBS = frozenset(
@@ -116,9 +116,18 @@ class Change(NamedTuple):
     after: Any
 
 
+class Outcome(NamedTuple):
+    changes: Sequence[Change] = ()
+    then: Optional[str] = None
+
+
+def as_outcome(result) -> Outcome:
+    return result if isinstance(result, Outcome) else Outcome(tuple(result))
+
+
 class Verb(NamedTuple):
     label: str
-    run: Callable[[Sequence[Found], Context], Sequence[Change]]
+    run: Callable[[Sequence[Found], Context], Union[Sequence[Change], Outcome]]
     undo: Optional[Callable[[Sequence[Change], Context], None]] = None
 
     @property
