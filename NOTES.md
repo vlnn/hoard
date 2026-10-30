@@ -223,3 +223,34 @@ of that, in `_steps`, and kinds reach it through `api.carry_out(kind, steps, ctx
 something; the `empty_trash` verb (reserved) removes those folders and records no batch. Trash
 stays hidden from the device, which keeps a reader's library clean, and this row is how it is
 emptied without showing hidden files in Finder. `TRASH` is exported from the contract.
+
+## 1.9.0: follow-ups, a self-refreshing index, suggestions from the kind
+
+Three things kobold wanted that every kind can use:
+
+- **`Outcome(changes, then)`.** A verb may return it in place of the bare changes; the kernel
+  records the changes, prints the notification and reopens Alfred at the `then` query. The
+  kernel's own `pick`, `pick_standard` and `like` return the same `Reply(message, then)` instead of
+  calling `osascript` from `dispatch`, so `api.act` reopens Alfred in one place, and does so after
+  the database is closed. A missing `osascript` (the conformance suite on Linux) is noted on
+  stderr, not raised.
+- **The keystroke refreshes a stale index.** `filter` spawns `worker update` when the newest
+  `storage_state.last_update_at` is older than `_worker.STALE_AFTER` (ten minutes) and no worker
+  holds the lock; the CLI passes the kind module it already has. An empty index still only offers
+  ↩ to update. The pass is stat-only for unchanged files, about a second per thousand books.
+- **`Kind.suggest(founds, ctx)` and `Kind.tagged(found, change, ctx)`.** The worker calls
+  `suggest` at the end of every update over every entity and stores the `Suggestion` records as
+  the tag answer under `model = "kind:<source>"`, with the entity's evidence hash, so `tag`, the
+  `?` marker, **Accept N suggested** and the picker need no new code. `_answers.stale` leaves
+  `kind:` rows out of its join, so the model's pass still asks about those entities, and
+  `store_suggestion` refuses to overwrite a fresh answer that is not a kind's. `tagged` fires
+  after `set_tag` and `accept_tags` and after their undo, with the `Change` reversed, so a kind can
+  learn from hand picks in its own store; `Found.suggested` carries the fresh guess, standardized,
+  to `subtitle`, `lint` and verbs (one join over the shown rows, under a millisecond at 40).
+- `make_epub(subjects=…)` and `make_fb2(genres=…)` in the fixtures; the conformance suite checks
+  that suggestions name indexed entities with a fractional confidence.
+
+Where the kind's own data lives is the kind's business: kobold keeps its genre rules in a second
+SQLite file under `ctx.data`, which the kernel never reads. The kernel offers storage for what it
+displays (the `answers` row) and a notification for what it changes (the tag); the policy — seeds,
+counts, confidence — stays where it can change without a hoard release.
