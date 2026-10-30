@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from hoard import _commands, _context, _db, _progress, _rows, _standards, _worker
+from hoard import _commands, _context, _db, _progress, _rows, _search, _standards, _worker
 from hoard.contract import Context, Kind
 from hoard.items import Items
 
@@ -22,10 +22,12 @@ def opened(kind: Kind, ctx: Optional[Context]) -> tuple:
     return con, _standards.with_standards(con, ctx)
 
 
-def filter(kind: Kind, typed: str, ctx: Optional[Context] = None) -> Items:
+def filter(kind: Kind, typed: str, ctx: Optional[Context] = None, module: Optional[str] = None) -> Items:
     con, ctx = opened(kind, ctx)
     try:
         rows = _commands.rows_for(con, kind, ctx, typed)
+        if not _search.is_empty(con):
+            _worker.refresh_if_stale(module, con, ctx)
         if not _worker.running(ctx):
             return Items(rows)
         return Items((_rows.working(*_progress.current(con)),) + rows, rerun=1)

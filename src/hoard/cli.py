@@ -23,7 +23,7 @@ def filter_mode(module: str, args: list) -> None:
 
     as_text = args[:1] == ["--text"]
     typed = " ".join(args[1:] if as_text else args)
-    items = api.filter(load_kind(module), typed)
+    items = api.filter(load_kind(module), typed, module=module)
     if as_text:
         from hoard.render import text
 

@@ -182,7 +182,10 @@ Command("Copy", "copy_in", off=("device",))
 anything else, `keep(found) -> bool` sees every row in Python; it works, but it costs about 200 ms
 at 10 000 entities. The rows come under a "Copy all N" row that runs the verb on all of them.
 
-`update`, `undo`, `rnd`, `stats` and `fix` belong to hoard.
+`update`, `undo`, `rnd`, `stats` and `fix` belong to hoard. `update` also starts itself: when a
+keystroke finds the index older than ten minutes (`_worker.STALE_AFTER`) and no worker running, the
+background update is spawned and the rows show *Updating the index…* as they do after `bk update`.
+An empty index is never read unasked; it keeps offering ↩ to update.
 
 Two or more letters of a command, with nothing after them, put a row per matching command first
 (`bk up` → *bk update*); ↩ or ⇥ on it completes the word, and the search for the letters follows.
