@@ -301,6 +301,31 @@ or two thousand.
 recognise the thing, plus a short excerpt. `python3 -m hoard books ask name --dry-run` prints exactly
 what would be sent.
 
+### Suggesting tags without a model
+
+A kind that can guess a tag from what it already read declares `suggest` and, if it wants to learn
+from what people pick, `tagged`:
+
+```python
+KIND = Kind(
+    …,
+    suggest=lazy("books.rules", "suggest"),
+    tagged=lazy("books.rules", "tagged"),
+)
+```
+
+`suggest(founds, ctx)` runs in the background worker at the end of every update over every entity
+and returns `Suggestion(id, tag, confidence, source)` records; the kernel stores them as the
+answer to the tag question with the entity's evidence hash, so `bk tag` shows `scifi? 80%`, offers
+**Accept N suggested**, and the picker puts the guess first, exactly as for the model. A kind
+suggestion never replaces a fresh answer from the model, the model's pass still asks about the
+entity, and its answer replaces the kind's. `found.suggested` carries the fresh guess, standardized,
+to `subtitle`, `lint` and verbs.
+
+`tagged(found, change, ctx)` is called after a tag is set by hand or accepted (`change.after` holds
+`[tag, set_by]`), and again when that is undone, with the change reversed. Where a kind keeps what
+it learns is its own business; `ctx.data` is the folder that survives updates and cache clears.
+
 ## 10. Standard spellings: `std`
 
 Collections spell the same thing several ways: one writer as `Samuel R. Delany`, `Delany, Samuel R.`

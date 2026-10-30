@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from hoard import _index, api
-from hoard.contract import STEP_VERBS, Context, Entity, Kind, Storage
+from hoard import _fold, _index, api
+from hoard.contract import STEP_VERBS, Context, Entity, Kind, Storage, Suggestion
 from hoard.items import Item
 from hoard.render import text
 
@@ -61,6 +61,15 @@ def snapshot(roots) -> dict:
 
 def listed_ids(kind: Kind, ctx: Context) -> list:
     return [row.id for row in api.filter(kind, "", ctx).rows if isinstance(row, Item)]
+
+
+def all_founds(kind: Kind, ctx: Context) -> list:
+    ctx = api.context(kind, ctx)
+    con = api.open_database(kind, ctx)
+    try:
+        return [row.found for row in _fold.fold(con, kind, ctx, con.execute(_index.EVERYTHING).fetchall())]
+    finally:
+        con.close()
 
 
 def module_defining(kind: Kind) -> str:
@@ -187,6 +196,16 @@ class Conformance:
         api.act(samples.kind, "apply", ["plan:"], samples.ctx)
         api.act(samples.kind, "undo", [], samples.ctx)
         assert snapshot(samples.roots) == before, "applying the plan then undoing should leave every byte in place"
+
+    def test_suggestions_name_indexed_entities(self, samples):
+        if self.kind.suggest is None:
+            return
+        api.update(samples.kind, samples.ctx)
+        ids = set(listed_ids(samples.kind, samples.ctx))
+        for suggestion in samples.kind.suggest(all_founds(samples.kind, samples.ctx), api.context(samples.kind, samples.ctx)):
+            assert isinstance(suggestion, Suggestion), "suggest should return hoard.contract.Suggestion records"
+            assert 0 <= suggestion.confidence <= 1, "a suggestion's confidence should be a fraction"
+            assert suggestion.id in ids, "a suggestion should name an indexed entity"
 
     def test_verbs_declare_undo(self):
         for name, verb in self.kind.verbs.items():

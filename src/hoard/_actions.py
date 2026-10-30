@@ -21,7 +21,7 @@ from hoard import (
     _tags,
     _trash,
 )
-from hoard.contract import Context, Kind, Verb, as_outcome
+from hoard.contract import Change, Context, Kind, Verb, as_outcome
 
 BATCH = "batch:"
 HEAD = "head:"
@@ -72,11 +72,23 @@ def run_kind_verb(con: sqlite3.Connection, kind: Kind, ctx: Context, name: str, 
 
 KERNEL_UNDO = {
     "accept": _names.undo,
-    "set_tag": _tags.undo,
-    "accept_tags": _tags.undo,
     "standardize": _standards.undo,
     "keep_apart": _standards.undo,
 }
+
+TAG_VERBS = ("set_tag", "accept_tags")
+
+
+def reversed_change(change) -> Change:
+    return Change(change.id, change.kind_of_change, change.after, change.before)
+
+
+def tags_undo(kind: Kind):
+    def undo(con, changes, ctx):
+        _tags.undo(con, changes, ctx)
+        tell_kind(con, kind, ctx, [reversed_change(change) for change in changes])
+
+    return undo
 
 
 def kind_undo(verb):
@@ -90,6 +102,8 @@ def plan_undo(kind: Kind):
 def undoer(kind: Kind, verb_name: str):
     if verb_name == "apply":
         return _commands.KERNEL_LABELS[verb_name], plan_undo(kind)
+    if verb_name in TAG_VERBS:
+        return _commands.KERNEL_LABELS[verb_name], tags_undo(kind)
     if verb_name in KERNEL_UNDO:
         return _commands.KERNEL_LABELS[verb_name], KERNEL_UNDO[verb_name]
     verb = kind.verbs.get(verb_name)
@@ -182,10 +196,20 @@ def targets_of(con, target: str) -> list:
     return [target[1:]]
 
 
+def tell_kind(con, kind: Kind, ctx: Context, changes: list) -> None:
+    if kind.tagged is None or not changes:
+        return
+    founds = {row.found.entity.id: row.found for row in resolve(con, kind, ctx, [change.id for change in changes])}
+    for change in changes:
+        if change.id in founds:
+            kind.tagged(founds[change.id], change, ctx)
+
+
 def set_tags(con, kind: Kind, ctx: Context, ids) -> str:
     target, tag = json.loads(ids[0][len(_suggest.CHOICE) :])
     changes = [_tags.set_tag(con, entity_id, tag, "hand") for entity_id in targets_of(con, target)]
     record(con, "set_tag", changes)
+    tell_kind(con, kind, ctx, changes)
     return tagged(con, kind, changes, changes[0].after[0][0] if changes else tag)
 
 
@@ -193,6 +217,7 @@ def accept_tags(con, kind: Kind, ctx: Context, ids) -> str:
     typed = ids[0][len("suggested:") :] if ids else ""
     changes = [_tags.set_tag(con, i, _tags.suggestion(con, i), "model") for i in _suggest.suggested_ids(con, typed)]
     record(con, "accept_tags", changes)
+    tell_kind(con, kind, ctx, changes)
     tags = {change.after[0][0] for change in changes}
     return tagged(con, kind, changes, tags.pop() if len(tags) == 1 and len(changes) == 1 else "")
 

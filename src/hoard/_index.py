@@ -8,7 +8,7 @@ import sys
 import time
 from typing import Callable, Iterator, NamedTuple, Optional
 
-from hoard import _db, _fold, _icons, _names, _progress, _standards
+from hoard import _answers, _db, _fold, _icons, _names, _progress, _questions, _standards
 from hoard._text import refresh_text
 from hoard.contract import Context, Entity, Kind, Storage
 
@@ -277,6 +277,40 @@ def derive_missing(run: Run) -> None:
                 store_derived(run.con, row.found.entity.id, key, value)
 
 
+EVERYTHING = "SELECT id, title, fields_json, icon FROM entities"
+DIGESTS = "SELECT id, evidence_hash FROM entities"
+
+
+def suggestions_of(kind: Kind, founds: list, ctx: Context) -> list:
+    try:
+        return list(kind.suggest(founds, ctx))
+    except Exception as error:
+        print(f"suggest: {error!r}", file=sys.stderr)
+        return []
+
+
+def as_answer(suggestion) -> dict:
+    return {"tag": suggestion.tag, "confidence": suggestion.confidence}
+
+
+def store_suggestion(con: sqlite3.Connection, suggestion, digests: dict) -> bool:
+    if suggestion.id not in digests:
+        return False
+    return _answers.store_suggestion(con, suggestion.id, _questions.TAG, digests[suggestion.id] or "", suggestion.source, as_answer(suggestion))
+
+
+def store_suggestions(con: sqlite3.Connection, suggestions: list) -> int:
+    digests = dict(con.execute(DIGESTS).fetchall())
+    return sum(store_suggestion(con, suggestion, digests) for suggestion in suggestions)
+
+
+def suggest_tags(run: Run) -> int:
+    if run.kind.suggest is None:
+        return 0
+    founds = [row.found for row in _fold.fold(run.con, run.kind, run.ctx, run.con.execute(EVERYTHING).fetchall())]
+    return store_suggestions(run.con, suggestions_of(run.kind, founds, run.ctx))
+
+
 def make_local_vectors(con: sqlite3.Connection, kind: Kind, ctx: Context) -> None:
     from hoard import _embed
 
@@ -308,5 +342,6 @@ def update(
     con.commit()
     make_local_vectors(con, kind, ctx)
     derive_missing(run)
+    suggest_tags(run)
     con.commit()
     return run.found

@@ -60,6 +60,7 @@ class Found(NamedTuple):
     entity: Entity
     sightings: tuple
     tags: tuple = ()
+    suggested: Optional[str] = None
 
     @property
     def storages(self) -> tuple:
@@ -114,6 +115,13 @@ class Change(NamedTuple):
     kind_of_change: str
     before: Any
     after: Any
+
+
+class Suggestion(NamedTuple):
+    id: str
+    tag: str
+    confidence: float
+    source: str = "rule"
 
 
 class Outcome(NamedTuple):
@@ -217,6 +225,8 @@ class _KindRecord(NamedTuple):
     subtitle: Optional[Callable[[Found, Context], str]] = None
     ground: Optional[Callable[[Context], Sequence[str]]] = None
     escort: Optional[Callable[[str, str, Context], None]] = None
+    suggest: Optional[Callable[[Sequence[Found], Context], Sequence[Suggestion]]] = None
+    tagged: Optional[Callable[[Found, Change, Context], None]] = None
 
 
 class Kind(_KindRecord):
@@ -279,6 +289,8 @@ def problems(kind: Kind) -> list:
         (kind.tags is None or callable(kind.tags), "tags should be callable with the context, or None"),
         (like_is_valid(kind.like), "like should be TextEmbedding(), LocalVectors(name, vector) or None"),
         (kind.last_opened is None or callable(kind.last_opened), "last_opened should be callable or None"),
+        (kind.suggest is None or callable(kind.suggest), "suggest should be callable or None"),
+        (kind.tagged is None or callable(kind.tagged), "tagged should be callable or None"),
         (all(isinstance(value, str) for value in kind.labels.values()), "labels should be strings"),
         (kind.ground is None or callable(kind.ground), "ground should be callable with the context, or None"),
         (kind.escort is None or callable(kind.escort), "escort should be callable or None"),
