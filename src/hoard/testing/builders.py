@@ -68,11 +68,12 @@ def element(tag: str, value: Optional[str], **attributes: str) -> str:
     return f"    <{tag}{attrs}>{escape(value)}</{tag}>" if value is not None else f"    <{tag}{attrs}/>"
 
 
-def opf_metadata(title, authors, date, series, series_index, cover, cover_style) -> str:
+def opf_metadata(title, authors, date, series, series_index, cover, cover_style, subjects=()) -> str:
     lines = [element("dc:identifier", "urn:uuid:hoard-fixture", id="uid")]
     lines += [element("dc:title", title)] if title is not None else []
     lines += [element("dc:creator", author) for author in authors]
     lines += [element("dc:date", date)] if date else []
+    lines += [element("dc:subject", subject) for subject in subjects]
     lines += [element("meta", None, name="calibre:series", content=series)] if series else []
     lines += [element("meta", None, name="calibre:series_index", content=series_index)] if series_index else []
     lines += [element("meta", None, name="cover", content="cover-image")] if cover and cover_style == "meta" else []
@@ -101,12 +102,13 @@ def make_epub(
     chapters: Sequence[str] = ("Once upon a time.",),
     cover: Optional[bytes] = None,
     cover_style: str = "meta",
+    subjects: Sequence[str] = (),
 ) -> str:
     path = str(path)
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     opf = OPF.format(
         version="3.0" if cover_style == "properties" else "2.0",
-        metadata=opf_metadata(title, authors, date, series, series_index, cover, cover_style),
+        metadata=opf_metadata(title, authors, date, series, series_index, cover, cover_style, subjects),
         manifest=opf_manifest(chapters, cover, cover_style),
         spine=opf_spine(chapters),
     )
@@ -125,8 +127,9 @@ def fb2_author(first: str, last: str) -> str:
     return f"    <author>\n  {element('first-name', first)}\n  {element('last-name', last)}\n    </author>"
 
 
-def fb2_title_info(title, authors, date, series, number, cover) -> str:
-    lines = [fb2_author(first, last) for first, last in authors]
+def fb2_title_info(title, authors, date, series, number, cover, genres=()) -> str:
+    lines = [element("genre", genre) for genre in genres]
+    lines += [fb2_author(first, last) for first, last in authors]
     lines += [element("book-title", title)] if title is not None else []
     lines += [element("date", date)] if date else []
     lines += ['    <coverpage><image l:href="#cover.jpg"/></coverpage>'] if cover else []
@@ -152,10 +155,11 @@ def make_fb2(
     body: str = "Once upon a time.",
     cover: Optional[bytes] = None,
     encoding: str = "utf-8",
+    genres: Sequence[str] = (),
 ) -> str:
     document = FB2.format(
         encoding=encoding,
-        title_info=fb2_title_info(title, authors, date, series, number, cover),
+        title_info=fb2_title_info(title, authors, date, series, number, cover, genres),
         body=escape(body),
         binary=fb2_binary(cover),
     )
