@@ -39,6 +39,7 @@ KERNEL_LABELS = {
     "set_tag": "Tag",
     "accept_tags": "Accept tags",
     "standardize": "Standardize",
+    "link": "Link",
     "keep_apart": "Keep apart",
 }
 

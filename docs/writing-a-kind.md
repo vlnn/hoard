@@ -348,7 +348,7 @@ A key is one of `fields`, or `TAGS` for the kind's tags (which then needs `tags`
 a multi-valued field, so `"A; B"` is two spellings. After every update hoard collects each subject's
 distinct spellings, each with the number of entities using it (for `TAGS`, the tags in use plus
 `kind.tags(ctx)` at zero), and calls `propose(spellings, ctx)` in the background worker. It returns
-`Standard(standard, variants, trivial)` records:
+`Standard(standard, variants, trivial, search_only)` records:
 
 - **`trivial=True`** proposals are applied by the update itself, as one undoable `standardize` batch.
   Mark only what cannot be wrong: case, punctuation, word order. Undoing that batch keeps the
@@ -366,6 +366,30 @@ standard; it rewrites tags, folds variants out of the tag picker and the model's
 stores a hand tag or a model guess under its standard. Kind code sees the same map:
 `ctx.standard(subject, value)` returns the standard, or the value itself. Books uses it to file a book
 from a variant genre folder into the standard one.
+
+### Links: found by either spelling, filed under each
+
+Some spellings are the same thing without being interchangeable: `Zelazny, Roger` and
+`Желязни, Роджер` are one writer, but each book should keep the name in its own language, in its
+own author folder. For those a kind proposes a **link**:
+
+```python
+Standard("Zelazny, Roger", ("Желязни, Роджер",), search_only=True)
+```
+
+A link is symmetric and changes no field, tag or file: every entity carrying either spelling is also
+found by the other, in a plain search and in the words after any command, and `ctx.standard` still
+returns each spelling itself. It waits in `bk std` as `A ↔ B · author · link · N books`; ↩ links,
+**Accept N** takes it with the standards, the picker offers **Link** or **Keep apart**, and `undo`
+unlinks. A link is never trivial: `Standard(..., trivial=True, search_only=True)` raises at
+construction, because a wrong link is invisible in one half of the search results.
+
+Links bind standards, not raw spellings: a link proposed for a variant is offered for its standard,
+and when a later merge swallows one side the link follows the new standard. A spelling takes one
+link; proposals for a spelling already linked, kept apart, or absent from the index are dropped.
+`ctx.linked(subject, value)` returns a spelling's partner, or `None`; a kind that wants `like` to
+see a link emits the partner into both entities' vectors itself; linking and unlinking drop the
+vectors of the entities concerned, and the next update remakes them.
 
 ## 11. Tests
 

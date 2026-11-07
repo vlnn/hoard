@@ -73,6 +73,7 @@ def run_kind_verb(con: sqlite3.Connection, kind: Kind, ctx: Context, name: str, 
 KERNEL_UNDO = {
     "accept": _names.undo,
     "standardize": _standards.undo,
+    "link": _standards.undo,
     "keep_apart": _standards.undo,
 }
 
@@ -225,12 +226,14 @@ def accept_tags(con, kind: Kind, ctx: Context, ids) -> str:
 def standards_set(found: list) -> str:
     if not found:
         return "Nothing to standardize"
-    return f"Standard: {found[0].standard}" if len(found) == 1 else f"{len(found)} standards set"
+    if len(found) > 1:
+        return f"{len(found)} standards set"
+    return f"Linked: {_standards.pair(found[0])}" if found[0].link else f"Standard: {found[0].standard}"
 
 
-def standardize(con, kind: Kind, ctx: Context, ids) -> str:
+def standardize(con, kind: Kind, ctx: Context, ids, verb: str = "standardize") -> str:
     found = _standards.chosen(con, ids)
-    record(con, "standardize", _standards.accept(con, kind, found))
+    record(con, verb, _standards.accept(con, kind, found))
     return standards_set(found)
 
 
@@ -282,8 +285,8 @@ def answered(con: sqlite3.Connection, kind: Kind, ctx: Context, verb: str, ids):
         return accept_tags(con, kind, ctx, ids)
     if verb == "pick":
         return pick(kind, ids)
-    if verb == "standardize":
-        return standardize(con, kind, ctx, ids)
+    if verb in ("standardize", "link"):
+        return standardize(con, kind, ctx, ids, verb)
     if verb == "keep_apart":
         return keep_apart(con, kind, ctx, ids)
     if verb == "pick_standard" and ids:

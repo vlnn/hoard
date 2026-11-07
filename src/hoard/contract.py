@@ -22,6 +22,7 @@ KERNEL_VERBS = frozenset(
         "like",
         "embed",
         "standardize",
+        "link",
         "keep_apart",
         "pick_standard",
         "empty_trash",
@@ -92,12 +93,16 @@ class Context(NamedTuple):
     journal: Optional[Callable[..., Any]] = None
     roots: Mapping[str, tuple] = NOTHING
     standards: Mapping[str, Mapping[str, str]] = NOTHING
+    links: Mapping[str, Mapping[str, str]] = NOTHING
 
     def setting(self, name: str, default: str = "") -> str:
         return self.config.get(name, default)
 
     def standard(self, subject: str, value: str) -> str:
         return self.standards.get(subject, NOTHING).get(value, value)
+
+    def linked(self, subject: str, value: str) -> Optional[str]:
+        return self.links.get(subject, NOTHING).get(value)
 
     def roots_of(self, storage: str) -> tuple:
         return tuple(self.roots.get(storage, ()))
@@ -179,10 +184,23 @@ class Spelling(NamedTuple):
     count: int = 0
 
 
-class Standard(NamedTuple):
+class _StandardRecord(NamedTuple):
     standard: str
     variants: tuple
     trivial: bool = False
+    search_only: bool = False
+
+
+class Standard(_StandardRecord):
+    __slots__ = ()
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> "Standard":
+        record = super().__new__(cls, *args, **kwargs)
+        if record.trivial and record.search_only:
+            raise ContractError("a search-only standard cannot be trivial: a link is never applied without being asked")
+        if record.search_only and len(record.variants) != 1:
+            raise ContractError("a search-only standard links exactly two spellings")
+        return record
 
 
 class Standardize(NamedTuple):
