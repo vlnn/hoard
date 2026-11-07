@@ -103,6 +103,19 @@ The kernel's own files (database, cache, lock, log, icons) are not on this list;
   itself); undoing an accepted one restores the proposal.
 - **Reserved:** command `std`; verbs `standardize`, `keep_apart`, `pick_standard`.
 
+## Links (1.10.0)
+
+- **A link is a `standards` row with `set_by = "link"`**, one per direction, so `mapping`, `standard_of`
+  and the field overlay skip it and `chained` carries it along when its standard is merged away.
+  `settled` ignores link rows so a linked spelling can still be merged; `linked` is checked only for
+  new link proposals. Schema v8 adds `proposals.link`.
+- **The search body carries linked spellings** (`_text.linked_spellings`): a word-bounded match of each
+  link's variant against the entity's own fields and tags, no kind needed, so every `refresh_text`
+  caller keeps the alias. `refresh_holders` re-indexes the holders of a spelling after a link is set
+  or undone and drops their vectors, so a kind whose `like` reads `ctx.linked` sees the link on the
+  next update; `instr` over `fields_json` over-matches harmlessly.
+- **Reserved:** verb `link`. `standardize` on a link proposal works too, so **Accept N** is one head.
+
 ## To verify on the Mac
 
 - **Keystroke budget in Alfred's debugger** (the Phase 0 gate). Here, on Python 3.9: bare
