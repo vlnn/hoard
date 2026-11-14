@@ -267,3 +267,34 @@ Where the kind's own data lives is the kind's business: kobold keeps its genre r
 SQLite file under `ctx.data`, which the kernel never reads. The kernel offers storage for what it
 displays (the `answers` row) and a notification for what it changes (the tag); the policy — seeds,
 counts, confidence — stays where it can change without a hoard release.
+
+## 1.11.0: storages that sleep
+
+Kobold's device root is on an SD card, and the first `kb` after a day took four and a half seconds
+where the next ones are instant. A keystroke read the card before printing a row: `roots` listed
+the device root for the nook and again for the vault, `mounted` stat-ed the root and every vault
+folder, and kobold's subtitle read KOReader's progress for each nook row. Fourteen calls on a
+device with three vault folders and three nook books, and every one waits for a card that has gone
+to sleep. None of them is needed to list what the index already holds.
+
+- **`Storage(sleeps=True)`.** `update` records each storage's folders and the ones it reached
+  (schema v9: `storage_state.roots_json`, `reach_json`). `filter` builds its context in `_asleep`:
+  a sleeping storage whose two lists are equal gets its roots from the index and is named in
+  `Context.asleep`, which `_fold.mounted_roots` and the empty-index rows take in place of calling
+  `mounted`. Everything else — `act`, `update`, `plan`, a storage not wholly reached, a database
+  from before v9 — resolves as it always did, so a storage is never trusted further than the last
+  update saw it, and one that was missing is found the moment it is plugged in.
+- **`Kind.updated(founds, ctx)`.** What a row shows from a sleeping storage has to come from
+  somewhere. The update calls `updated` after the storages are read, shares one fold of every
+  entity with `suggest`, and runs it first, so a kind's notes are fresh when it suggests. Kobold
+  notes progress, the vault's genre folders and KOReader's last book in `ctx.cache`.
+- **The keystroke that starts the worker says so.** `filter` asked `_worker.running` right after
+  spawning, before the child could write its lock, so the ten-minute refresh never showed
+  *Updating the index…* and never asked Alfred to rerun; the rows stayed as they were until the
+  next key. `refresh_if_stale` already says whether it spawned: `filter` now puts
+  `_rows.starting()` first (*counting files*, not the last run's numbers) with `rerun=1`. With
+  sleeping storages that rerun is what brings an unplugged drive's rows up to date.
+- The conformance suite gains `test_a_keystroke_leaves_sleeping_storages_alone`.
+
+What is not covered: a keystroke that is itself a look at the storage, `fix` above all, whose plan
+is made from the files as they are.
