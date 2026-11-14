@@ -102,6 +102,10 @@ WORKING = {
 }
 
 
+def starting(job: str = "update") -> Head:
+    return working(job, "0", "")
+
+
 def working(job: str, done: str, total: str) -> Head:
     title, done_word = WORKING.get(job, WORKING["update"])
     return Head("updating", title, f"{done} of {total} {done_word}" if total else "counting files")

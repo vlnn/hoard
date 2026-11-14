@@ -62,3 +62,22 @@ def test_a_worker_already_running_is_not_doubled(indexed, mocker):
     mocker.patch("hoard._worker.running", return_value=True)
     api.filter(FakeKind, "dune", indexed, module=MODULE)
     popen.assert_not_called()
+
+
+def test_the_keystroke_that_starts_the_worker_says_so_before_the_worker_holds_its_lock(indexed, mocker):
+    mocker.patch("hoard._worker.spawn", return_value=True)
+    mocker.patch("hoard._worker.running", return_value=False)
+    age_index(indexed, _worker.STALE_AFTER + 1)
+    items = api.filter(FakeKind, "dune", indexed, module=MODULE)
+    assert text.render(items)[0] == "» Updating the index… | counting files", (
+        "a worker just started has no lock or count yet, and the row should say it is starting, not repeat the last run's numbers"
+    )
+    assert items.rerun == 1, "Alfred should be asked to come back, so the rows follow the update the keystroke started"
+
+
+def test_a_worker_that_could_not_be_started_is_not_announced(indexed, mocker):
+    mocker.patch("hoard._worker.spawn", return_value=False)
+    mocker.patch("hoard._worker.running", return_value=False)
+    age_index(indexed, _worker.STALE_AFTER + 1)
+    items = api.filter(FakeKind, "dune", indexed, module=MODULE)
+    assert (len(items.rows), items.rerun) == (1, None), "with no worker started or running there is nothing to wait for"

@@ -26,8 +26,8 @@ def filter(kind: Kind, typed: str, ctx: Optional[Context] = None, module: Option
     con, ctx = opened(kind, ctx)
     try:
         rows = _commands.rows_for(con, kind, ctx, typed)
-        if not _search.is_empty(con):
-            _worker.refresh_if_stale(module, con, ctx)
+        if not _search.is_empty(con) and _worker.refresh_if_stale(module, con, ctx):
+            return Items((_rows.starting(),) + rows, rerun=1)
         if not _worker.running(ctx):
             return Items(rows)
         return Items((_rows.working(*_progress.current(con)),) + rows, rerun=1)
