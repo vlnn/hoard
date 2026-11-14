@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from typing import NamedTuple, Optional
 
 from hoard import (
     _commands,
@@ -11,7 +12,6 @@ from hoard import (
     _models,
     _names,
     _plan,
-    _requery,
     _rows,
     _search,
     _standards,
@@ -21,7 +21,7 @@ from hoard import (
     _tags,
     _trash,
 )
-from hoard.contract import Context, Kind, Verb
+from hoard.contract import Change, Context, Kind, Verb, as_outcome
 
 BATCH = "batch:"
 HEAD = "head:"
@@ -54,23 +54,42 @@ def changed_titles(rows: list, changes) -> list:
     return [row.found.entity.title for row in rows if row.found.entity.id in changed]
 
 
-def run_kind_verb(con: sqlite3.Connection, kind: Kind, ctx: Context, name: str, ids) -> str:
+class Reply(NamedTuple):
+    message: str
+    then: Optional[str] = None
+
+
+def run_kind_verb(con: sqlite3.Connection, kind: Kind, ctx: Context, name: str, ids) -> Reply:
     verb, rows = kind.verbs[name], resolve(con, kind, ctx, ids)
-    changes = tuple(verb.run([row.found for row in rows], ctx))
+    result = as_outcome(verb.run([row.found for row in rows], ctx))
+    changes = tuple(result.changes)
     if changes:
         _journal.record(con, name, changes, verb.undoable)
         con.commit()
         _index.update(con, kind, ctx)
-    return outcome(kind, verb, changed_titles(rows, changes))
+    return Reply(outcome(kind, verb, changed_titles(rows, changes)), result.then)
 
 
 KERNEL_UNDO = {
     "accept": _names.undo,
-    "set_tag": _tags.undo,
-    "accept_tags": _tags.undo,
     "standardize": _standards.undo,
+    "link": _standards.undo,
     "keep_apart": _standards.undo,
 }
+
+TAG_VERBS = ("set_tag", "accept_tags")
+
+
+def reversed_change(change) -> Change:
+    return Change(change.id, change.kind_of_change, change.after, change.before)
+
+
+def tags_undo(kind: Kind):
+    def undo(con, changes, ctx):
+        _tags.undo(con, changes, ctx)
+        tell_kind(con, kind, ctx, [reversed_change(change) for change in changes])
+
+    return undo
 
 
 def kind_undo(verb):
@@ -84,6 +103,8 @@ def plan_undo(kind: Kind):
 def undoer(kind: Kind, verb_name: str):
     if verb_name == "apply":
         return _commands.KERNEL_LABELS[verb_name], plan_undo(kind)
+    if verb_name in TAG_VERBS:
+        return _commands.KERNEL_LABELS[verb_name], tags_undo(kind)
     if verb_name in KERNEL_UNDO:
         return _commands.KERNEL_LABELS[verb_name], KERNEL_UNDO[verb_name]
     verb = kind.verbs.get(verb_name)
@@ -176,10 +197,20 @@ def targets_of(con, target: str) -> list:
     return [target[1:]]
 
 
+def tell_kind(con, kind: Kind, ctx: Context, changes: list) -> None:
+    if kind.tagged is None or not changes:
+        return
+    founds = {row.found.entity.id: row.found for row in resolve(con, kind, ctx, [change.id for change in changes])}
+    for change in changes:
+        if change.id in founds:
+            kind.tagged(founds[change.id], change, ctx)
+
+
 def set_tags(con, kind: Kind, ctx: Context, ids) -> str:
     target, tag = json.loads(ids[0][len(_suggest.CHOICE) :])
     changes = [_tags.set_tag(con, entity_id, tag, "hand") for entity_id in targets_of(con, target)]
     record(con, "set_tag", changes)
+    tell_kind(con, kind, ctx, changes)
     return tagged(con, kind, changes, changes[0].after[0][0] if changes else tag)
 
 
@@ -187,6 +218,7 @@ def accept_tags(con, kind: Kind, ctx: Context, ids) -> str:
     typed = ids[0][len("suggested:") :] if ids else ""
     changes = [_tags.set_tag(con, i, _tags.suggestion(con, i), "model") for i in _suggest.suggested_ids(con, typed)]
     record(con, "accept_tags", changes)
+    tell_kind(con, kind, ctx, changes)
     tags = {change.after[0][0] for change in changes}
     return tagged(con, kind, changes, tags.pop() if len(tags) == 1 and len(changes) == 1 else "")
 
@@ -194,12 +226,14 @@ def accept_tags(con, kind: Kind, ctx: Context, ids) -> str:
 def standards_set(found: list) -> str:
     if not found:
         return "Nothing to standardize"
-    return f"Standard: {found[0].standard}" if len(found) == 1 else f"{len(found)} standards set"
+    if len(found) > 1:
+        return f"{len(found)} standards set"
+    return f"Linked: {_standards.pair(found[0])}" if found[0].link else f"Standard: {found[0].standard}"
 
 
-def standardize(con, kind: Kind, ctx: Context, ids) -> str:
+def standardize(con, kind: Kind, ctx: Context, ids, verb: str = "standardize") -> str:
     found = _standards.chosen(con, ids)
-    record(con, "standardize", _standards.accept(con, kind, found))
+    record(con, verb, _standards.accept(con, kind, found))
     return standards_set(found)
 
 
@@ -210,24 +244,29 @@ def keep_apart(con, kind: Kind, ctx: Context, ids) -> str:
     return f"Kept apart: {', '.join(spellings)}" if spellings else "Nothing kept apart"
 
 
-def pick_standard(kind: Kind, ids) -> str:
-    _requery.reopen(f"{kind.keyword} std #{ids[0][len(_standards.ONE) :]} ")
-    return ""
+def pick_standard(kind: Kind, ids) -> Reply:
+    return Reply("", f"{kind.keyword} std #{ids[0][len(_standards.ONE) :]} ")
 
 
-def like(kind: Kind, ids) -> str:
-    _requery.reopen(f"{kind.keyword} like #{ids[0]}")
-    return ""
+def like(kind: Kind, ids) -> Reply:
+    return Reply("", f"{kind.keyword} like #{ids[0]}")
 
 
-def pick(kind: Kind, ids) -> str:
+def pick(kind: Kind, ids) -> Reply:
     given = ids[0] if ids else ""
     target = given[len("pick:") :] if given.startswith("pick:") else f"#{given}"
-    _requery.reopen(f"{kind.keyword} tag {target} ")
-    return ""
+    return Reply("", f"{kind.keyword} tag {target} ")
 
 
-def dispatch(con: sqlite3.Connection, kind: Kind, ctx: Context, verb: str, ids) -> str:
+def replied(result) -> Reply:
+    return result if isinstance(result, Reply) else Reply(result)
+
+
+def dispatch(con: sqlite3.Connection, kind: Kind, ctx: Context, verb: str, ids) -> Reply:
+    return replied(answered(con, kind, ctx, verb, ids))
+
+
+def answered(con: sqlite3.Connection, kind: Kind, ctx: Context, verb: str, ids):
     if verb in _system.SYSTEM_VERBS:
         return _system.hand_over(kind, resolve(con, kind, ctx, ids), verb)
     if verb == "undo":
@@ -246,8 +285,8 @@ def dispatch(con: sqlite3.Connection, kind: Kind, ctx: Context, verb: str, ids) 
         return accept_tags(con, kind, ctx, ids)
     if verb == "pick":
         return pick(kind, ids)
-    if verb == "standardize":
-        return standardize(con, kind, ctx, ids)
+    if verb in ("standardize", "link"):
+        return standardize(con, kind, ctx, ids, verb)
     if verb == "keep_apart":
         return keep_apart(con, kind, ctx, ids)
     if verb == "pick_standard" and ids:

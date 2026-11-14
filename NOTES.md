@@ -103,6 +103,19 @@ The kernel's own files (database, cache, lock, log, icons) are not on this list;
   itself); undoing an accepted one restores the proposal.
 - **Reserved:** command `std`; verbs `standardize`, `keep_apart`, `pick_standard`.
 
+## Links (1.10.0)
+
+- **A link is a `standards` row with `set_by = "link"`**, one per direction, so `mapping`, `standard_of`
+  and the field overlay skip it and `chained` carries it along when its standard is merged away.
+  `settled` ignores link rows so a linked spelling can still be merged; `linked` is checked only for
+  new link proposals. Schema v8 adds `proposals.link`.
+- **The search body carries linked spellings** (`_text.linked_spellings`): a word-bounded match of each
+  link's variant against the entity's own fields and tags, no kind needed, so every `refresh_text`
+  caller keeps the alias. `refresh_holders` re-indexes the holders of a spelling after a link is set
+  or undone and drops their vectors, so a kind whose `like` reads `ctx.linked` sees the link on the
+  next update; `instr` over `fields_json` over-matches harmlessly.
+- **Reserved:** verb `link`. `standardize` on a link proposal works too, so **Accept N** is one head.
+
 ## To verify on the Mac
 
 - **Keystroke budget in Alfred's debugger** (the Phase 0 gate). Here, on Python 3.9: bare
@@ -223,3 +236,65 @@ of that, in `_steps`, and kinds reach it through `api.carry_out(kind, steps, ctx
 something; the `empty_trash` verb (reserved) removes those folders and records no batch. Trash
 stays hidden from the device, which keeps a reader's library clean, and this row is how it is
 emptied without showing hidden files in Finder. `TRASH` is exported from the contract.
+
+## 1.9.0: follow-ups, a self-refreshing index, suggestions from the kind
+
+Three things kobold wanted that every kind can use:
+
+- **`Outcome(changes, then)`.** A verb may return it in place of the bare changes; the kernel
+  records the changes, prints the notification and reopens Alfred at the `then` query. The
+  kernel's own `pick`, `pick_standard` and `like` return the same `Reply(message, then)` instead of
+  calling `osascript` from `dispatch`, so `api.act` reopens Alfred in one place, and does so after
+  the database is closed. A missing `osascript` (the conformance suite on Linux) is noted on
+  stderr, not raised.
+- **The keystroke refreshes a stale index.** `filter` spawns `worker update` when the newest
+  `storage_state.last_update_at` is older than `_worker.STALE_AFTER` (ten minutes) and no worker
+  holds the lock; the CLI passes the kind module it already has. An empty index still only offers
+  ↩ to update. The pass is stat-only for unchanged files, about a second per thousand books.
+- **`Kind.suggest(founds, ctx)` and `Kind.tagged(found, change, ctx)`.** The worker calls
+  `suggest` at the end of every update over every entity and stores the `Suggestion` records as
+  the tag answer under `model = "kind:<source>"`, with the entity's evidence hash, so `tag`, the
+  `?` marker, **Accept N suggested** and the picker need no new code. `_answers.stale` leaves
+  `kind:` rows out of its join, so the model's pass still asks about those entities, and
+  `store_suggestion` refuses to overwrite a fresh answer that is not a kind's. `tagged` fires
+  after `set_tag` and `accept_tags` and after their undo, with the `Change` reversed, so a kind can
+  learn from hand picks in its own store; `Found.suggested` carries the fresh guess, standardized,
+  to `subtitle`, `lint` and verbs (one join over the shown rows, under a millisecond at 40).
+- `make_epub(subjects=…)` and `make_fb2(genres=…)` in the fixtures; the conformance suite checks
+  that suggestions name indexed entities with a fractional confidence.
+
+Where the kind's own data lives is the kind's business: kobold keeps its genre rules in a second
+SQLite file under `ctx.data`, which the kernel never reads. The kernel offers storage for what it
+displays (the `answers` row) and a notification for what it changes (the tag); the policy — seeds,
+counts, confidence — stays where it can change without a hoard release.
+
+## 1.11.0: storages that sleep
+
+Kobold's device root is on an SD card, and the first `kb` after a day took four and a half seconds
+where the next ones are instant. A keystroke read the card before printing a row: `roots` listed
+the device root for the nook and again for the vault, `mounted` stat-ed the root and every vault
+folder, and kobold's subtitle read KOReader's progress for each nook row. Fourteen calls on a
+device with three vault folders and three nook books, and every one waits for a card that has gone
+to sleep. None of them is needed to list what the index already holds.
+
+- **`Storage(sleeps=True)`.** `update` records each storage's folders and the ones it reached
+  (schema v9: `storage_state.roots_json`, `reach_json`). `filter` builds its context in `_asleep`:
+  a sleeping storage whose two lists are equal gets its roots from the index and is named in
+  `Context.asleep`, which `_fold.mounted_roots` and the empty-index rows take in place of calling
+  `mounted`. Everything else — `act`, `update`, `plan`, a storage not wholly reached, a database
+  from before v9 — resolves as it always did, so a storage is never trusted further than the last
+  update saw it, and one that was missing is found the moment it is plugged in.
+- **`Kind.updated(founds, ctx)`.** What a row shows from a sleeping storage has to come from
+  somewhere. The update calls `updated` after the storages are read, shares one fold of every
+  entity with `suggest`, and runs it first, so a kind's notes are fresh when it suggests. Kobold
+  notes progress, the vault's genre folders and KOReader's last book in `ctx.cache`.
+- **The keystroke that starts the worker says so.** `filter` asked `_worker.running` right after
+  spawning, before the child could write its lock, so the ten-minute refresh never showed
+  *Updating the index…* and never asked Alfred to rerun; the rows stayed as they were until the
+  next key. `refresh_if_stale` already says whether it spawned: `filter` now puts
+  `_rows.starting()` first (*counting files*, not the last run's numbers) with `rerun=1`. With
+  sleeping storages that rerun is what brings an unplugged drive's rows up to date.
+- The conformance suite gains `test_a_keystroke_leaves_sleeping_storages_alone`.
+
+What is not covered: a keystroke that is itself a look at the storage, `fix` above all, whose plan
+is made from the files as they are.

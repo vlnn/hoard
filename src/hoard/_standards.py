@@ -9,7 +9,7 @@ from collections import Counter
 from typing import Iterator, NamedTuple, Optional
 
 from hoard import _journal
-from hoard._text import refresh_text
+from hoard._text import LINK, refresh_text, relinked
 from hoard.contract import TAGS, Change, Context, Kind, Spelling, Standard
 
 APART = "apart"
@@ -20,8 +20,9 @@ EVERY = "std:"
 ONE = "std#"
 CHOICE = "stdpick:"
 
-MAPPED = "SELECT subject, variant, standard FROM standards WHERE set_by != ?"
-PROPOSALS = "SELECT key, subject, standard, variants_json, shown_json, count FROM proposals"
+MAPPED = "SELECT subject, variant, standard FROM standards WHERE set_by NOT IN (?, ?)"
+LINKED = "SELECT subject, variant, standard FROM standards WHERE set_by = ?"
+PROPOSALS = "SELECT key, subject, standard, variants_json, shown_json, count, link FROM proposals"
 TAGS_IN_USE = "SELECT t.tag, count(DISTINCT t.id) FROM tags t JOIN entities e ON e.id = t.id GROUP BY t.tag"
 
 
@@ -32,10 +33,12 @@ class Pending(NamedTuple):
     shown: tuple
     count: int
     trivial: bool = False
+    link: bool = False
 
     @property
     def key(self) -> str:
-        content = json.dumps([self.subject, self.standard, sorted(self.variants)], ensure_ascii=False)
+        parts = [self.subject, *sorted(self.spellings), LINK] if self.link else [self.subject, self.standard, sorted(self.variants)]
+        content = json.dumps(parts, ensure_ascii=False)
         return hashlib.blake2b(content.encode("utf-8"), digest_size=8).hexdigest()
 
     @property
@@ -51,24 +54,37 @@ class Pending(NamedTuple):
 
 def mapping(con: sqlite3.Connection) -> dict:
     table = {}
-    for subject, variant, standard in con.execute(MAPPED, (APART,)):
+    for subject, variant, standard in con.execute(MAPPED, (APART, LINK)):
         table.setdefault(subject, {})[variant] = standard
     return table
 
 
+def link_mapping(con: sqlite3.Connection) -> dict:
+    table = {}
+    for subject, spelling, partner in con.execute(LINKED, (LINK,)):
+        table.setdefault(subject, {})[spelling] = partner
+    return table
+
+
 def with_standards(con: sqlite3.Connection, ctx: Context) -> Context:
-    return ctx._replace(standards=mapping(con))
+    return ctx._replace(standards=mapping(con), links=link_mapping(con))
 
 
 def standard_of(con: sqlite3.Connection, subject: str, value: str) -> str:
     row = con.execute(
-        "SELECT standard FROM standards WHERE subject = ? AND variant = ? AND set_by != ?", (subject, value, APART)
+        "SELECT standard FROM standards WHERE subject = ? AND variant = ? AND set_by NOT IN (?, ?)", (subject, value, APART, LINK)
     ).fetchone()
     return row[0] if row else value
 
 
 def settled(con: sqlite3.Connection, subject: str) -> set:
-    return {variant for (variant,) in con.execute("SELECT variant FROM standards WHERE subject = ?", (subject,))}
+    rows = con.execute("SELECT variant FROM standards WHERE subject = ? AND set_by != ?", (subject, LINK))
+    return {variant for (variant,) in rows}
+
+
+def linked(con: sqlite3.Connection, subject: str) -> set:
+    rows = con.execute("SELECT variant FROM standards WHERE subject = ? AND set_by = ?", (subject, LINK))
+    return {variant for (variant,) in rows}
 
 
 def values_of(text: str, separator: str) -> list:
@@ -159,11 +175,33 @@ def pending(subject: str, target: str, standard: Standard, counts: Counter, unav
     return Pending(subject, target, variants, shown, sum(counts[v] for v in shown), standard.trivial)
 
 
+def carried(count: int) -> bool:
+    return count > 0
+
+
+def link_pending(subject: str, target: str, variants: tuple, counts: Counter, unavailable: set) -> Optional[Pending]:
+    shown = tuple(dict.fromkeys(v for v in variants if v != target))
+    if target in unavailable or any(v in unavailable for v in shown) or not shown:
+        return None
+    if not carried(counts.get(target, 0)) or not all(carried(counts.get(v, 0)) for v in shown):
+        return None
+    return Pending(subject, target, shown, shown, counts[target] + sum(counts[v] for v in shown), link=True)
+
+
 def proposed_for(con: sqlite3.Connection, kind: Kind, ctx: Context, subject: str) -> Iterator[Pending]:
     counts = spellings_of(con, kind, ctx, subject)
     unavailable, redirect = settled(con, subject), dict(ctx.standards.get(subject, {}))
+    tied = linked(con, subject)
     for standard in asked(kind, ctx, subject, counts):
-        found = pending(subject, followed(redirect, standard.standard), standard, counts, unavailable)
+        target = followed(redirect, standard.standard)
+        if standard.search_only:
+            variants = tuple(followed(redirect, v) for v in standard.variants)
+            found = link_pending(subject, target, variants, counts, unavailable | tied)
+            if found is not None:
+                tied |= set(found.spellings)
+                yield found
+            continue
+        found = pending(subject, target, standard, counts, unavailable)
         if found is not None:
             unavailable |= set(found.variants)
             redirect.update(dict.fromkeys(found.variants, found.standard))
@@ -193,12 +231,36 @@ def chained(con: sqlite3.Connection, subject: str, standards: set) -> dict:
     return {variant: set_by for variant, standard, set_by in rows if standard in standards}
 
 
+def is_link(row: Optional[list]) -> bool:
+    return row is not None and row[1] == LINK
+
+
+def inherited_link(con: sqlite3.Connection, found: Pending) -> Optional[list]:
+    for variant in found.variants:
+        row = row_of(con, found.subject, variant)
+        if is_link(row) and row[0] != found.standard and row[0] not in found.variants:
+            return [row[0], LINK]
+    return None
+
+
 def remapped(con: sqlite3.Connection, found: Pending, set_by: str) -> dict:
+    if found.link:
+        return linked_rows(con, found)
     rows = {variant: [found.standard, by] for variant, by in chained(con, found.subject, set(found.variants)).items()}
     rows.update({variant: [found.standard, set_by] for variant in found.variants})
-    if (row_of(con, found.subject, found.standard) or [None, APART])[1] != APART:
+    own = row_of(con, found.subject, found.standard)
+    if own is not None and own[1] not in (APART, LINK):
         rows[found.standard] = None
+    if own is None and (carried_over := inherited_link(con, found)):
+        rows[found.standard] = carried_over
     return rows
+
+
+def linked_rows(con: sqlite3.Connection, found: Pending) -> dict:
+    if any(row_of(con, found.subject, spelling) is not None for spelling in found.spellings):
+        return {}
+    (partner,) = found.variants
+    return {found.standard: [partner, LINK], partner: [found.standard, LINK]}
 
 
 def kept_apart(found: Pending) -> dict:
@@ -262,8 +324,8 @@ def retag(con: sqlite3.Connection, table: dict) -> list:
 
 
 def as_pending(row: tuple) -> Pending:
-    _, subject, standard, variants_json, shown_json, count = row
-    return Pending(subject, standard, tuple(json.loads(variants_json)), tuple(json.loads(shown_json)), count)
+    _, subject, standard, variants_json, shown_json, count, link = row
+    return Pending(subject, standard, tuple(json.loads(variants_json)), tuple(json.loads(shown_json)), count, link=bool(link))
 
 
 def proposal_record(found: Pending) -> dict:
@@ -273,12 +335,13 @@ def proposal_record(found: Pending) -> dict:
         "variants": list(found.variants),
         "shown": list(found.shown),
         "count": found.count,
+        "link": found.link,
     }
 
 
 def insert_proposal(con: sqlite3.Connection, key: str, record: dict) -> None:
     con.execute(
-        "INSERT OR REPLACE INTO proposals(key, subject, standard, variants_json, shown_json, count) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT OR REPLACE INTO proposals(key, subject, standard, variants_json, shown_json, count, link) VALUES (?, ?, ?, ?, ?, ?, ?)",
         (
             key,
             record["subject"],
@@ -286,6 +349,7 @@ def insert_proposal(con: sqlite3.Connection, key: str, record: dict) -> None:
             json.dumps(record["variants"], ensure_ascii=False),
             json.dumps(record["shown"], ensure_ascii=False),
             record["count"],
+            int(record.get("link", False)),
         ),
     )
 
@@ -298,6 +362,10 @@ def store_proposals(con: sqlite3.Connection, found: list) -> None:
 
 def all_proposals(con: sqlite3.Connection) -> list:
     return [as_pending(row) for row in con.execute(PROPOSALS + " ORDER BY subject, standard, key")]
+
+
+def pair(found: Pending) -> str:
+    return " ↔ ".join(found.spellings)
 
 
 def matches(found: Pending, typed: str) -> bool:
@@ -315,8 +383,9 @@ def proposal(con: sqlite3.Connection, key: str) -> Optional[Pending]:
 
 
 def settled_proposal(con: sqlite3.Connection, found: Pending, table: dict) -> bool:
-    done = settled(con, found.subject)
-    return found.standard in table.get(found.subject, {}) or all(variant in done for variant in found.shown)
+    done = settled(con, found.subject) | (linked(con, found.subject) if found.link else set())
+    mapped = found.standard in table.get(found.subject, {}) or (found.link and found.standard in done)
+    return mapped or all(variant in done for variant in found.shown)
 
 
 def drop_settled_proposals(con: sqlite3.Connection, table: dict) -> list:
@@ -328,12 +397,27 @@ def drop_settled_proposals(con: sqlite3.Connection, table: dict) -> list:
     return changes
 
 
+def link_spellings(changes: list) -> set:
+    spellings = set()
+    for change in (c for c in changes if c.kind_of_change == "standard"):
+        for row in (change.before["row"], change.after["row"]):
+            if is_link(row):
+                spellings |= {change.id, row[0]}
+    return spellings
+
+
+def relink_text(con: sqlite3.Connection, changes: list) -> None:
+    relinked(con, sorted(link_spellings(changes)))
+
+
 def rewrite(con: sqlite3.Connection, kind: Kind, found: list, rows_for) -> list:
     if not found:
         return []
     changes = [change for each in found for change in rewrite_rows(con, each.subject, rows_for(each))]
     table = mapping(con)
-    return changes + restandardize_fields(con, kind, table) + retag(con, table) + drop_settled_proposals(con, table)
+    changes += restandardize_fields(con, kind, table) + retag(con, table)
+    relink_text(con, changes)
+    return changes + drop_settled_proposals(con, table)
 
 
 def accept(con: sqlite3.Connection, kind: Kind, found: list, set_by: str = HAND) -> list:
@@ -383,7 +467,9 @@ def undo_standard(con: sqlite3.Connection, change: Change) -> None:
     subject, before, after = change.before["subject"], change.before["row"], change.after["row"]
     automatic = before is None and after is not None and after[1] == RULE
     put(con, subject, change.id, [change.id, APART] if automatic else before)
-    if after is not None and after[1] != APART and subject != TAGS:
+    if is_link(before) or is_link(after):
+        relinked(con, sorted(link_spellings([change])))
+    elif after is not None and after[1] != APART and subject != TAGS:
         reread_holders(con, after[0])
 
 

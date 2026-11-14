@@ -161,8 +161,15 @@ def retag_rows(con, kind: Kind, ctx: Context, words: list) -> tuple:
 
 
 def proposal_item(kind: Kind, found) -> Item:
+    if found.link:
+        return link_item(kind, found)
     detail = [found.subject, ", ".join(found.shown)] + ([_rows.counted(kind, found.count)] if found.count else [])
     return Item(f"{_standards.ONE}{found.key}", found.standard, " · ".join(detail), verb="standardize", mods=(STANDARD_MOD,))
+
+
+def link_item(kind: Kind, found) -> Item:
+    detail = [found.subject, "link", _rows.counted(kind, found.count)]
+    return Item(f"{_standards.ONE}{found.key}", _standards.pair(found), " · ".join(detail), verb="link", mods=(STANDARD_MOD,))
 
 
 def nothing_to_standardize() -> tuple:
@@ -174,19 +181,27 @@ def spelling_item(found, spelling: str) -> Item:
     return Item(_standards.choice_id(found, spelling), spelling, note, verb="standardize")
 
 
-def standard_picker_rows(con: sqlite3.Connection, key: str) -> tuple:
+def link_picker_rows(kind: Kind, found) -> tuple:
+    head = Head("picker", f"{found.subject}: {_standards.pair(found)}", "a link has no standard spelling")
+    note = f"either spelling finds the {kind.labels.get('many', 'items')} of both"
+    return (head, Item(f"{_standards.ONE}{found.key}", "Link", note, verb="link"))
+
+
+def standard_picker_rows(con: sqlite3.Connection, kind: Kind, key: str) -> tuple:
     found = _standards.proposal(con, key)
     if found is None:
         return nothing_to_standardize()
+    apart = Item(f"{_standards.ONE}{found.key}", "Keep apart", "these stay different spellings", verb="keep_apart")
+    if found.link:
+        return (*link_picker_rows(kind, found), apart)
     head = Head("picker", f"{found.subject}: {found.standard}", "pick the standard spelling")
     spellings = tuple(spelling_item(found, spelling) for spelling in (found.standard, *found.shown))
-    apart = Item(f"{_standards.ONE}{found.key}", "Keep apart", "these stay different spellings", verb="keep_apart")
     return (head, *spellings, apart)
 
 
 def std_rows(con, kind: Kind, ctx: Context, words: list) -> tuple:
     if words and words[0].startswith("#"):
-        return standard_picker_rows(con, words[0][1:])
+        return standard_picker_rows(con, kind, words[0][1:])
     typed = " ".join(words)
     waiting = _standards.proposals(con, typed)
     if not waiting:

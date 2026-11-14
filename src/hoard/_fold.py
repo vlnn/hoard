@@ -5,12 +5,17 @@ import os
 import sqlite3
 from typing import NamedTuple, Optional
 
+from hoard.contract import TAGS as TAGS_SUBJECT
 from hoard.contract import Context, Entity, Found, Kind, Sighting
 
 CHUNK = 500
 WHOLE_TABLE = 2000
 SIGHTINGS = "SELECT id, storage, locator, mtime, size FROM sightings"
 TAGS = "SELECT id, tag FROM tags"
+GUESSES = (
+    "SELECT a.id, a.answer_json FROM answers a JOIN entities e ON e.id = a.id AND e.evidence_hash = a.evidence_hash"
+    " WHERE a.question = 'tag'"
+)
 
 
 class Row(NamedTuple):
@@ -18,8 +23,14 @@ class Row(NamedTuple):
     icon: Optional[str]
 
 
+def reached(storage, ctx: Context) -> tuple:
+    if storage.name in ctx.asleep:
+        return ctx.asleep[storage.name]
+    return tuple(root for root in ctx.roots_of(storage.name) if storage.mounted(root))
+
+
 def mounted_roots(kind: Kind, ctx: Context) -> dict:
-    return {s.name: tuple(root for root in ctx.roots_of(s.name) if s.mounted(root)) for s in kind.storages}
+    return {storage.name: reached(storage, ctx) for storage in kind.storages}
 
 
 def under(locator: str, root: str) -> bool:
@@ -48,11 +59,16 @@ def chunks(items: list, size: int = CHUNK):
         yield items[start : start + size]
 
 
-def rows_for(con: sqlite3.Connection, query: str, ids: list):
+def narrowed(query: str, column: str, count: int) -> str:
+    glue = "AND" if " WHERE " in query else "WHERE"
+    return f"{query} {glue} {column} IN ({','.join('?' * count)})"
+
+
+def rows_for(con: sqlite3.Connection, query: str, ids: list, column: str = "id"):
     if len(ids) > WHOLE_TABLE:
         wanted = set(ids)
         return (row for row in con.execute(query) if row[0] in wanted)
-    return (row for chunk in chunks(ids) for row in con.execute(f"{query} WHERE id IN ({','.join('?' * len(chunk))})", chunk))
+    return (row for chunk in chunks(ids) for row in con.execute(narrowed(query, column, len(chunk)), chunk))
 
 
 def sightings_of(con: sqlite3.Connection, ids: list) -> dict:
@@ -67,6 +83,18 @@ def tags_of(con: sqlite3.Connection, ids: list) -> dict:
     for entity_id, tag in rows_for(con, TAGS, ids):
         found.setdefault(entity_id, []).append(tag)
     return {entity_id: tuple(sorted(tags)) for entity_id, tags in found.items()}
+
+
+def guessed_tag(answer_json: str) -> str:
+    return str(json.loads(answer_json).get("tag") or "")
+
+
+def guesses_of(con: sqlite3.Connection, ids: list, ctx: Context) -> dict:
+    found = {}
+    for entity_id, answer_json in rows_for(con, GUESSES, ids, column="a.id"):
+        if tag := guessed_tag(answer_json):
+            found[entity_id] = ctx.standard(TAGS_SUBJECT, tag)
+    return found
 
 
 def sighting(row: tuple, reach: dict) -> Sighting:
@@ -84,13 +112,14 @@ def fold(con: sqlite3.Connection, kind: Kind, ctx: Context, entity_rows: list) -
     reach = prefixes(mounted_roots(kind, ctx))
     order = {storage.name: n for n, storage in enumerate(kind.storages)}
     ids = [row[0] for row in entity_rows]
-    sightings, tags = sightings_of(con, ids), tags_of(con, ids)
+    sightings, tags, guesses = sightings_of(con, ids), tags_of(con, ids), guesses_of(con, ids, ctx)
     return [
         Row(
             Found(
                 Entity(entity_id, title, tuple(json.loads(fields_json))),
                 in_kind_order(order, sightings.get(entity_id, []), reach),
                 tags.get(entity_id, ()),
+                guesses.get(entity_id),
             ),
             icon,
         )

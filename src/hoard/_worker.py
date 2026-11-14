@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 from contextlib import contextmanager
 from typing import Iterator, Optional
 
@@ -9,6 +10,7 @@ from hoard.contract import Context
 
 LOCK = "update.lock"
 LOG = "worker.log"
+STALE_AFTER = 600.0
 
 
 class Busy(Exception):
@@ -57,6 +59,22 @@ def running(ctx: Context) -> bool:
         return True
     remove_quietly(path)
     return False
+
+
+def index_age(con, now: Optional[float] = None) -> Optional[float]:
+    (newest,) = con.execute("SELECT max(last_update_at) FROM storage_state").fetchone()
+    return None if newest is None else (time.time() if now is None else now) - newest
+
+
+def stale(con) -> bool:
+    age = index_age(con)
+    return age is not None and age > STALE_AFTER
+
+
+def refresh_if_stale(module: Optional[str], con, ctx: Context) -> bool:
+    if module is None or running(ctx) or not stale(con):
+        return False
+    return spawn(module, "update", ctx)
 
 
 @contextmanager

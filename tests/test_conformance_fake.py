@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 import empty_kind
 import pytest
 
@@ -130,3 +132,32 @@ def test_samples_are_read_the_way_the_index_walks(tmp_path):
     assert [e.title for e in suite.read_samples(FakeKind.storages[0], tmp_path)] == ["Dune"], (
         "the suite should skip hidden files and folders exactly like the index"
     )
+
+
+def sleepy_samples(tmp_path, **overrides):
+    roots = {name: tmp_path / name for name in ("shelf", "satchel")}
+    for root in roots.values():
+        root.mkdir()
+    write_note(roots["shelf"], "dune", "Dune")
+    sleepy = tuple(storage._replace(sleeps=True) for storage in FakeKind.storages)
+    kind = suite.with_sample_roots(FakeKind._replace(storages=sleepy, **overrides), roots)
+    (tmp_path / "data").mkdir()
+    ctx = suite.Context(data=str(tmp_path / "data"), cache=str(tmp_path / "data"))
+    return suite.Samples(kind, ctx, (), tuple(roots.values()))
+
+
+def test_a_kind_whose_rows_come_from_the_index_may_let_its_storages_sleep(tmp_path):
+    samples = sleepy_samples(tmp_path)
+    TestFakeKindConforms().test_a_keystroke_leaves_sleeping_storages_alone(samples)
+    assert not samples.roots[0].exists(), "the suite should have taken the sleeping storage away to see"
+
+
+def looks_at_the_file(found, ctx):
+    return "here" if os.path.exists(found.nearest.locator) else "gone"
+
+
+def test_a_kind_that_looks_at_a_sleeping_storage_while_typing_fails_conformance(tmp_path):
+    case = TestFakeKindConforms()
+    with pytest.raises(AssertionError):
+        case.test_a_keystroke_leaves_sleeping_storages_alone(sleepy_samples(tmp_path, subtitle=looks_at_the_file))
+        pytest.fail("a subtitle that reads the storage on a keystroke should fail the suite")

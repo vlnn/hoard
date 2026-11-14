@@ -120,6 +120,15 @@ CREATE TABLE proposals(
 );
 """
 
+LINKED_PROPOSALS = """
+ALTER TABLE proposals ADD COLUMN link INTEGER NOT NULL DEFAULT 0;
+"""
+
+REMEMBERED_FOLDERS = """
+ALTER TABLE storage_state ADD COLUMN roots_json TEXT;
+ALTER TABLE storage_state ADD COLUMN reach_json TEXT;
+"""
+
 MIGRATIONS = (
     SCHEMA_V1,
     JOURNAL_KIND_OF_CHANGE,
@@ -128,6 +137,8 @@ MIGRATIONS = (
     VECTOR_SIGNATURES,
     PICTURED_NEWEST,
     STANDARDS,
+    LINKED_PROPOSALS,
+    REMEMBERED_FOLDERS,
 )
 
 CACHE_TABLES = frozenset({"entities", "sightings", "fts", "derived", "storage_state", "proposals"})

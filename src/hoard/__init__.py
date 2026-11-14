@@ -8,6 +8,7 @@ from hoard.contract import (
     Found,
     Kind,
     LocalVectors,
+    Outcome,
     Plan,
     Sighting,
     Spelling,
@@ -15,6 +16,7 @@ from hoard.contract import (
     Standardize,
     Step,
     Storage,
+    Suggestion,
     TextEmbedding,
     Verb,
     lazy,
@@ -22,7 +24,7 @@ from hoard.contract import (
     roots_from,
 )
 
-__version__ = "1.8.1"
+__version__ = "1.11.0"
 
 __all__ = [
     "Change",
@@ -33,6 +35,7 @@ __all__ = [
     "Found",
     "Kind",
     "LocalVectors",
+    "Outcome",
     "Plan",
     "Sighting",
     "Spelling",
@@ -40,6 +43,7 @@ __all__ = [
     "Standardize",
     "Step",
     "Storage",
+    "Suggestion",
     "TAGS",
     "TextEmbedding",
     "Verb",

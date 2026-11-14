@@ -124,6 +124,30 @@ def subtitle(found: Found, ctx: Context) -> str:
 
 hoard itself never puts tags in a subtitle; the kind that has them decides where they go.
 
+**A storage on a drive that sleeps.** Every keystroke asks each storage where it is, `roots(ctx)`,
+and whether it is there, `mounted(root)`. A card or a disk that has gone to sleep answers once it
+is awake, seconds later, and the rows wait for it. `Storage(..., sleeps=True)` leaves such a
+storage alone while typing: as long as the last update reached every one of its folders, rows take
+the folders and their reachability from that update and neither callable is asked. Verbs and
+updates always look. So an unplugged drive is noticed by the next update, which a keystroke starts
+on its own once the index is ten minutes old, while a storage the last update did *not* wholly
+reach is looked at on every keystroke as before, and plugging it in shows at once.
+
+With `sleeps=True` nothing else a keystroke runs may read the storage either: not `subtitle`,
+`tags`, `last_opened`, `default_verb` or a command's `keep`. What those need from it, the kind
+notes down in `updated` (section 8) and reads back while `ctx.asleep` names the storage:
+
+```python
+def reading(found: Found, ctx: Context) -> str:
+    path = found.locator_in("nook")
+    return noted_progress(path, ctx) if "nook" in ctx.asleep else read_progress(path)
+```
+
+`ctx.asleep` maps each storage left asleep on this keystroke to its folders; for a verb or an
+update it is empty, so the same function looks when looking is wanted. The conformance suite
+updates, takes the sleeping storages' folders away, and expects the empty query and every command
+to list the same rows.
+
 ## 5. What ↩ does: `default_verb` and verbs
 
 Everything hoard hands a kind about an entity arrives as a `Found`: the entity plus every
@@ -166,6 +190,10 @@ as the notification. `bk undo` reverses the newest batch. A verb with `undo=None
 that changes something other than files, a tag written into the file say, returns its own
 `Change`s next to the ones `carry_out` returned and undoes those itself before calling `restore`.
 
+A verb that wants Alfred back afterwards returns `Outcome(changes, then="bk tag #<id> ")` instead of
+the bare changes: the kernel records the changes, posts the notification, and reopens Alfred at the
+`then` query. The tag picker, `std` and `like` use the same follow-up.
+
 ## 6. Commands
 
 A command is a first word that lists a subset with its own ↩:
@@ -178,7 +206,10 @@ Command("Copy", "copy_in", off=("device",))
 anything else, `keep(found) -> bool` sees every row in Python; it works, but it costs about 200 ms
 at 10 000 entities. The rows come under a "Copy all N" row that runs the verb on all of them.
 
-`update`, `undo`, `rnd`, `stats` and `fix` belong to hoard.
+`update`, `undo`, `rnd`, `stats` and `fix` belong to hoard. `update` also starts itself: when a
+keystroke finds the index older than ten minutes (`_worker.STALE_AFTER`) and no worker running, the
+background update is spawned and the rows show *Updating the index…* as they do after `bk update`.
+An empty index is never read unasked; it keeps offering ↩ to update.
 
 Two or more letters of a command, with nothing after them, put a row per matching command first
 (`bk up` → *bk update*); ↩ or ⇥ on it completes the word, and the search for the letters follows.
@@ -228,6 +259,13 @@ what was made, and a producer that raises is asked again next time. Put slow pro
 Update makes a kind's `LocalVectors` first and derived values after, so one analysis can serve
 both: Pictures asks Vision once per picture for the feature print, labels and text while making
 the vector, and its `labels` and `text` producers pick up what that pass kept.
+
+`updated(founds, ctx)` is for what changes without the file changing, a reader's progress kept
+beside a book say. Every update calls it once with everything found, after the storages are read
+and before `suggest`: the background one, and the one that follows a verb, an undo or `fix`. The
+kind keeps what it notes wherever it likes, `ctx.cache` for something the next update makes again,
+and its `subtitle` reads that instead of the storage. If it raises, the update finishes and the
+error goes to the worker log.
 
 ## 9. Models: `name`, `tag` and `like`
 
@@ -294,6 +332,31 @@ or two thousand.
 recognise the thing, plus a short excerpt. `python3 -m hoard books ask name --dry-run` prints exactly
 what would be sent.
 
+### Suggesting tags without a model
+
+A kind that can guess a tag from what it already read declares `suggest` and, if it wants to learn
+from what people pick, `tagged`:
+
+```python
+KIND = Kind(
+    …,
+    suggest=lazy("books.rules", "suggest"),
+    tagged=lazy("books.rules", "tagged"),
+)
+```
+
+`suggest(founds, ctx)` runs in the background worker at the end of every update over every entity
+and returns `Suggestion(id, tag, confidence, source)` records; the kernel stores them as the
+answer to the tag question with the entity's evidence hash, so `bk tag` shows `scifi? 80%`, offers
+**Accept N suggested**, and the picker puts the guess first, exactly as for the model. A kind
+suggestion never replaces a fresh answer from the model, the model's pass still asks about the
+entity, and its answer replaces the kind's. `found.suggested` carries the fresh guess, standardized,
+to `subtitle`, `lint` and verbs.
+
+`tagged(found, change, ctx)` is called after a tag is set by hand or accepted (`change.after` holds
+`[tag, set_by]`), and again when that is undone, with the change reversed. Where a kind keeps what
+it learns is its own business; `ctx.data` is the folder that survives updates and cache clears.
+
 ## 10. Standard spellings: `std`
 
 Collections spell the same thing several ways: one writer as `Samuel R. Delany`, `Delany, Samuel R.`
@@ -316,7 +379,7 @@ A key is one of `fields`, or `TAGS` for the kind's tags (which then needs `tags`
 a multi-valued field, so `"A; B"` is two spellings. After every update hoard collects each subject's
 distinct spellings, each with the number of entities using it (for `TAGS`, the tags in use plus
 `kind.tags(ctx)` at zero), and calls `propose(spellings, ctx)` in the background worker. It returns
-`Standard(standard, variants, trivial)` records:
+`Standard(standard, variants, trivial, search_only)` records:
 
 - **`trivial=True`** proposals are applied by the update itself, as one undoable `standardize` batch.
   Mark only what cannot be wrong: case, punctuation, word order. Undoing that batch keeps the
@@ -334,6 +397,30 @@ standard; it rewrites tags, folds variants out of the tag picker and the model's
 stores a hand tag or a model guess under its standard. Kind code sees the same map:
 `ctx.standard(subject, value)` returns the standard, or the value itself. Books uses it to file a book
 from a variant genre folder into the standard one.
+
+### Links: found by either spelling, filed under each
+
+Some spellings are the same thing without being interchangeable: `Zelazny, Roger` and
+`Желязни, Роджер` are one writer, but each book should keep the name in its own language, in its
+own author folder. For those a kind proposes a **link**:
+
+```python
+Standard("Zelazny, Roger", ("Желязни, Роджер",), search_only=True)
+```
+
+A link is symmetric and changes no field, tag or file: every entity carrying either spelling is also
+found by the other, in a plain search and in the words after any command, and `ctx.standard` still
+returns each spelling itself. It waits in `bk std` as `A ↔ B · author · link · N books`; ↩ links,
+**Accept N** takes it with the standards, the picker offers **Link** or **Keep apart**, and `undo`
+unlinks. A link is never trivial: `Standard(..., trivial=True, search_only=True)` raises at
+construction, because a wrong link is invisible in one half of the search results.
+
+Links bind standards, not raw spellings: a link proposed for a variant is offered for its standard,
+and when a later merge swallows one side the link follows the new standard. A spelling takes one
+link; proposals for a spelling already linked, kept apart, or absent from the index are dropped.
+`ctx.linked(subject, value)` returns a spelling's partner, or `None`; a kind that wants `like` to
+see a link emits the partner into both entities' vectors itself; linking and unlinking drop the
+vectors of the entities concerned, and the next update remakes them.
 
 ## 11. Tests
 

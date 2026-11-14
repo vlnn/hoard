@@ -32,6 +32,7 @@ def test_epub_starts_with_a_stored_mimetype(tmp_path):
         ({"authors": ("A", "B")}, ".//dc:creator", ["A", "B"]),
         ({"date": "1965-08-01"}, ".//dc:date", ["1965-08-01"]),
         ({"title": None}, ".//dc:title", []),
+        ({"subjects": ("FICTION / Science Fiction", "Space opera")}, ".//dc:subject", ["FICTION / Science Fiction", "Space opera"]),
     ],
 )
 def test_epub_metadata_lands_in_the_opf(tmp_path, arguments, xpath, expected):
@@ -61,3 +62,8 @@ def test_fb2_parses_in_its_declared_encoding(tmp_path, encoding):
 def test_fb2_cover_is_a_base64_binary(tmp_path):
     root = ET.parse(make_fb2(tmp_path / "a.fb2", cover=b"\xff\xd8\xffjpeg")).getroot()
     assert base64.b64decode(root.find("fb:binary", FB2_NS).text) == b"\xff\xd8\xffjpeg", "the cover should be embedded"
+
+
+def test_fb2_genres_come_first_in_the_title_info(tmp_path):
+    root = ET.parse(make_fb2(tmp_path / "a.fb2", genres=("sf", "sf_space"))).getroot()
+    assert [node.text for node in root.findall(".//fb:genre", FB2_NS)] == ["sf", "sf_space"], "every genre should be written"

@@ -6,13 +6,16 @@ import time
 from typing import Optional
 
 EXCHANGES_KEPT = 300
+KIND_SOURCE = "kind:"
 
 STALE = """
 SELECT e.id, e.title FROM entities e
-LEFT JOIN answers a ON a.id = e.id AND a.question = ?
+LEFT JOIN answers a ON a.id = e.id AND a.question = ? AND a.model NOT LIKE ?
 WHERE e.evidence IS NOT NULL AND e.evidence != '' AND (a.id IS NULL OR a.evidence_hash != e.evidence_hash)
 ORDER BY e.mtime DESC
 """
+
+FRESH_SOURCE = "SELECT model FROM answers WHERE id = ? AND question = ? AND evidence_hash = ?"
 
 
 def store(con: sqlite3.Connection, entity_id: str, question: str, evidence_hash: str, model: str, answer: dict) -> None:
@@ -31,7 +34,23 @@ def fresh(con: sqlite3.Connection, entity_id: str, question: str, evidence_hash:
 
 
 def stale(con: sqlite3.Connection, question: str) -> list:
-    return con.execute(STALE, (question,)).fetchall()
+    return con.execute(STALE, (question, KIND_SOURCE + "%")).fetchall()
+
+
+def from_kind(model: str) -> bool:
+    return model.startswith(KIND_SOURCE)
+
+
+def replaceable(con: sqlite3.Connection, entity_id: str, question: str, evidence_hash: str) -> bool:
+    row = con.execute(FRESH_SOURCE, (entity_id, question, evidence_hash)).fetchone()
+    return row is None or from_kind(row[0])
+
+
+def store_suggestion(con: sqlite3.Connection, entity_id: str, question: str, evidence_hash: str, source: str, answer: dict) -> bool:
+    if not replaceable(con, entity_id, question, evidence_hash):
+        return False
+    store(con, entity_id, question, evidence_hash, KIND_SOURCE + source, answer)
+    return True
 
 
 def forget(con: sqlite3.Connection, entity_id: str, question: str) -> None:
