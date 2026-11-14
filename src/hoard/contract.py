@@ -94,6 +94,7 @@ class Context(NamedTuple):
     roots: Mapping[str, tuple] = NOTHING
     standards: Mapping[str, Mapping[str, str]] = NOTHING
     links: Mapping[str, Mapping[str, str]] = NOTHING
+    asleep: Mapping[str, tuple] = NOTHING
 
     def setting(self, name: str, default: str = "") -> str:
         return self.config.get(name, default)
@@ -113,6 +114,7 @@ class Storage(NamedTuple):
     roots: Callable[[Context], Sequence[str]]
     reader: Callable[[str], Optional[Entity]]
     mounted: Callable[[str], bool] = os.path.isdir
+    sleeps: bool = False
 
 
 class Change(NamedTuple):
@@ -245,6 +247,7 @@ class _KindRecord(NamedTuple):
     escort: Optional[Callable[[str, str, Context], None]] = None
     suggest: Optional[Callable[[Sequence[Found], Context], Sequence[Suggestion]]] = None
     tagged: Optional[Callable[[Found, Change, Context], None]] = None
+    updated: Optional[Callable[[Sequence[Found], Context], None]] = None
 
 
 class Kind(_KindRecord):
@@ -286,6 +289,7 @@ def problems(kind: Kind) -> list:
         (isinstance(kind.storages, tuple), "storages should be a tuple, in display order"),
         (all(isinstance(s, Storage) for s in kind.storages), "storages should be Storage records"),
         (len({s.name for s in kind.storages}) == len(kind.storages), "storage names should be unique"),
+        (all(isinstance(s.sleeps, bool) for s in kind.storages if isinstance(s, Storage)), "sleeps should be a bool"),
         (isinstance(kind.fields, tuple), "fields should be a tuple, in display order"),
         (all(isinstance(f, str) for f in kind.fields), "field labels should be strings"),
         (callable(kind.evidence), "evidence should be callable"),
@@ -309,6 +313,7 @@ def problems(kind: Kind) -> list:
         (kind.last_opened is None or callable(kind.last_opened), "last_opened should be callable or None"),
         (kind.suggest is None or callable(kind.suggest), "suggest should be callable or None"),
         (kind.tagged is None or callable(kind.tagged), "tagged should be callable or None"),
+        (kind.updated is None or callable(kind.updated), "updated should be callable or None"),
         (all(isinstance(value, str) for value in kind.labels.values()), "labels should be strings"),
         (kind.ground is None or callable(kind.ground), "ground should be callable with the context, or None"),
         (kind.escort is None or callable(kind.escort), "escort should be callable or None"),

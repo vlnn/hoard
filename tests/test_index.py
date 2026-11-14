@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 
 import pytest
@@ -215,3 +216,15 @@ def test_unchanged_files_count_as_checked_too(tmp_db, ctx, three_notes):
     _index.update(tmp_db, FakeKind, ctx)
     _index.update(tmp_db, FakeKind, ctx)
     assert _progress.current(tmp_db).done == "3", "a second update reads nothing new but still checks every file"
+
+
+def remembered_folders(con):
+    return {storage: (json.loads(roots), json.loads(reach)) for storage, roots, reach in con.execute("SELECT storage, roots_json, reach_json FROM storage_state")}
+
+
+def test_an_update_remembers_where_each_storage_is_and_what_it_reached(tmp_db, ctx, three_notes, shelf, satchel):
+    os.rmdir(satchel)
+    _index.update(tmp_db, FakeKind, ctx)
+    assert remembered_folders(tmp_db) == {"shelf": ([str(shelf)], [str(shelf)]), "satchel": ([str(satchel)], [])}, (
+        "each storage should record its folders and which of them the update reached"
+    )

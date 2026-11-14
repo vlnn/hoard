@@ -124,6 +124,30 @@ def subtitle(found: Found, ctx: Context) -> str:
 
 hoard itself never puts tags in a subtitle; the kind that has them decides where they go.
 
+**A storage on a drive that sleeps.** Every keystroke asks each storage where it is, `roots(ctx)`,
+and whether it is there, `mounted(root)`. A card or a disk that has gone to sleep answers once it
+is awake, seconds later, and the rows wait for it. `Storage(..., sleeps=True)` leaves such a
+storage alone while typing: as long as the last update reached every one of its folders, rows take
+the folders and their reachability from that update and neither callable is asked. Verbs and
+updates always look. So an unplugged drive is noticed by the next update, which a keystroke starts
+on its own once the index is ten minutes old, while a storage the last update did *not* wholly
+reach is looked at on every keystroke as before, and plugging it in shows at once.
+
+With `sleeps=True` nothing else a keystroke runs may read the storage either: not `subtitle`,
+`tags`, `last_opened`, `default_verb` or a command's `keep`. What those need from it, the kind
+notes down in `updated` (section 8) and reads back while `ctx.asleep` names the storage:
+
+```python
+def reading(found: Found, ctx: Context) -> str:
+    path = found.locator_in("nook")
+    return noted_progress(path, ctx) if "nook" in ctx.asleep else read_progress(path)
+```
+
+`ctx.asleep` maps each storage left asleep on this keystroke to its folders; for a verb or an
+update it is empty, so the same function looks when looking is wanted. The conformance suite
+updates, takes the sleeping storages' folders away, and expects the empty query and every command
+to list the same rows.
+
 ## 5. What ↩ does: `default_verb` and verbs
 
 Everything hoard hands a kind about an entity arrives as a `Found`: the entity plus every
@@ -235,6 +259,13 @@ what was made, and a producer that raises is asked again next time. Put slow pro
 Update makes a kind's `LocalVectors` first and derived values after, so one analysis can serve
 both: Pictures asks Vision once per picture for the feature print, labels and text while making
 the vector, and its `labels` and `text` producers pick up what that pass kept.
+
+`updated(founds, ctx)` is for what changes without the file changing, a reader's progress kept
+beside a book say. Every update calls it once with everything found, after the storages are read
+and before `suggest`: the background one, and the one that follows a verb, an undo or `fix`. The
+kind keeps what it notes wherever it likes, `ctx.cache` for something the next update makes again,
+and its `subtitle` reads that instead of the storage. If it raises, the update finishes and the
+error goes to the worker log.
 
 ## 9. Models: `name`, `tag` and `like`
 

@@ -88,6 +88,8 @@ def test_a_kind_needs_only_storages_fields_and_evidence():
         ({"labels": {"one": 1}}, "labels should be strings"),
         ({"commands": {"loose": Command("Open", "open", off=("device",))}}, "off should name the kind's storages"),
         ({"subtitle": "author"}, "subtitle should be callable or None"),
+        ({"storages": (Storage("library", roots_from("library"), read_nothing, sleeps="yes"),)}, "sleeps should be a bool"),
+        ({"updated": "later"}, "updated should be callable or None"),
     ],
 )
 def test_a_malformed_kind_fails_when_built(overrides, reason):

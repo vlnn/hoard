@@ -59,6 +59,14 @@ def snapshot(roots) -> dict:
     }
 
 
+def listed_lines(kind: Kind, ctx: Context) -> dict:
+    return {word: text.render(api.filter(kind, word, ctx)) for word in ("", *kind.commands)}
+
+
+def take_away(root: Path) -> None:
+    root.rename(root.with_name(root.name + " taken away"))
+
+
 def listed_ids(kind: Kind, ctx: Context) -> list:
     return [row.id for row in api.filter(kind, "", ctx).rows if isinstance(row, Item)]
 
@@ -174,6 +182,16 @@ class Conformance:
         for word in self.kind.commands:
             lines = text.render(api.filter(samples.kind, word, samples.ctx))
             assert lines and all(isinstance(line, str) for line in lines), f"{word} should list through the renderer"
+
+    def test_a_keystroke_leaves_sleeping_storages_alone(self, samples):
+        api.update(samples.kind, samples.ctx)
+        before = listed_lines(samples.kind, samples.ctx)
+        for storage, root in zip(samples.kind.storages, samples.roots):
+            if storage.sleeps:
+                take_away(Path(root))
+        assert listed_lines(samples.kind, samples.ctx) == before, (
+            "rows should come from the index alone: with sleeps=True nothing a keystroke lists may read the storage"
+        )
 
     def test_undoable_verbs_undo_to_the_byte(self, samples):
         api.update(samples.kind, samples.ctx)

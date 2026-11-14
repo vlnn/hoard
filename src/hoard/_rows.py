@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Optional
 
 from hoard import _models
-from hoard._fold import Row
+from hoard._fold import Row, mounted_roots
 from hoard.contract import Context, Found, Kind, LocalVectors
 from hoard.items import Head, Item, Mod
 
@@ -65,7 +65,7 @@ def is_unset(storage, ctx: Context) -> bool:
 
 
 def missing_folders(kind: Kind, ctx: Context) -> tuple:
-    heads = []
+    heads, reached = [], mounted_roots(kind, ctx)
     for storage in kind.storages:
         roots = ctx.roots_of(storage.name)
         if not roots and is_unset(storage, ctx):
@@ -74,7 +74,7 @@ def missing_folders(kind: Kind, ctx: Context) -> tuple:
         heads += [
             Head(f"unreachable:{storage.name}", f"Not reachable: {root}", f"{storage.name} · is the drive connected?")
             for root in roots
-            if not storage.mounted(root)
+            if root not in reached[storage.name]
         ]
     return tuple(heads)
 

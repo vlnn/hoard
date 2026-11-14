@@ -201,3 +201,21 @@ def test_the_covered_first_order_is_served_by_an_index(tmp_db):
     assert "entities_pictured_newest" in plan and "TEMP B-TREE" not in plan, (
         "listing pictured entities first, newest first, should read an index rather than sort the table"
     )
+
+
+def test_version_nine_keeps_storage_state_and_remembers_no_folders_yet(tmp_path):
+    import sqlite3
+
+    path = str(tmp_path / "v8.sqlite")
+    old = sqlite3.connect(path)
+    for script in _db.MIGRATIONS[:8]:
+        old.executescript(script)
+    old.execute("INSERT INTO meta VALUES ('schema_version', '8')")
+    old.execute("INSERT INTO storage_state VALUES ('shelf', 1, 10.0, 10.0, 3)")
+    old.commit()
+    old.close()
+    con = _db.connect(path)
+    assert con.execute("SELECT storage, mounted, count, roots_json, reach_json FROM storage_state").fetchall() == [
+        ("shelf", 1, 3, None, None)
+    ], "what an update recorded before should stay, with no folders remembered until the next update"
+    con.close()

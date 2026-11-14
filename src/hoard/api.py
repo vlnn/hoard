@@ -2,14 +2,18 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from hoard import _commands, _context, _db, _progress, _rows, _search, _standards, _worker
-from hoard.contract import Context, Kind
+from hoard import _asleep, _commands, _context, _db, _progress, _rows, _search, _standards, _worker
+from hoard.contract import NOTHING, Context, Kind
 from hoard.items import Items
 
 
+def settings(kind: Kind, ctx: Optional[Context]) -> Context:
+    return ctx or _context.from_environ(kind)
+
+
 def context(kind: Kind, ctx: Optional[Context] = None) -> Context:
-    ctx = ctx or _context.from_environ(kind)
-    return ctx._replace(roots={storage.name: tuple(storage.roots(ctx)) for storage in kind.storages})
+    ctx = settings(kind, ctx)
+    return ctx._replace(roots={storage.name: tuple(storage.roots(ctx)) for storage in kind.storages}, asleep=NOTHING)
 
 
 def open_database(kind: Kind, ctx: Context):
@@ -22,8 +26,14 @@ def opened(kind: Kind, ctx: Optional[Context]) -> tuple:
     return con, _standards.with_standards(con, ctx)
 
 
+def opened_for_a_keystroke(kind: Kind, ctx: Optional[Context]) -> tuple:
+    ctx = settings(kind, ctx)
+    con = open_database(kind, ctx)
+    return con, _standards.with_standards(con, _asleep.context(con, kind, ctx))
+
+
 def filter(kind: Kind, typed: str, ctx: Optional[Context] = None, module: Optional[str] = None) -> Items:
-    con, ctx = opened(kind, ctx)
+    con, ctx = opened_for_a_keystroke(kind, ctx)
     try:
         rows = _commands.rows_for(con, kind, ctx, typed)
         if not _search.is_empty(con) and _worker.refresh_if_stale(module, con, ctx):

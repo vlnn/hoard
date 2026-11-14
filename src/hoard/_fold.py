@@ -23,8 +23,14 @@ class Row(NamedTuple):
     icon: Optional[str]
 
 
+def reached(storage, ctx: Context) -> tuple:
+    if storage.name in ctx.asleep:
+        return ctx.asleep[storage.name]
+    return tuple(root for root in ctx.roots_of(storage.name) if storage.mounted(root))
+
+
 def mounted_roots(kind: Kind, ctx: Context) -> dict:
-    return {s.name: tuple(root for root in ctx.roots_of(s.name) if s.mounted(root)) for s in kind.storages}
+    return {storage.name: reached(storage, ctx) for storage in kind.storages}
 
 
 def under(locator: str, root: str) -> bool:

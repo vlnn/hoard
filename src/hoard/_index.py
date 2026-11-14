@@ -211,14 +211,14 @@ def record_progress(con: sqlite3.Connection, storage: str, count: int) -> None:
     )
 
 
-def record_state(con: sqlite3.Connection, storage: str, mounted: bool) -> None:
+def record_state(con: sqlite3.Connection, storage: str, configured: list, reached: list) -> None:
     now = time.time()
     con.execute(
         """
-        INSERT OR REPLACE INTO storage_state(storage, mounted, checked_at, last_update_at, count)
-        VALUES (?, ?, ?, ?, (SELECT count(*) FROM sightings WHERE storage = ?))
+        INSERT OR REPLACE INTO storage_state(storage, mounted, checked_at, last_update_at, count, roots_json, reach_json)
+        VALUES (?, ?, ?, ?, (SELECT count(*) FROM sightings WHERE storage = ?), ?, ?)
         """,
-        (storage, int(mounted), now, now, storage),
+        (storage, int(bool(reached)), now, now, storage, json.dumps(configured), json.dumps(reached)),
     )
 
 
@@ -238,7 +238,7 @@ def update_storage(run: Run, storage: Storage) -> None:
     for root in roots:
         update_root(run, storage, root)
     forget_unrooted(run.con, storage.name, configured)
-    record_state(run.con, storage.name, bool(roots))
+    record_state(run.con, storage.name, configured, roots)
     run.on_progress(run.found)
 
 
@@ -304,11 +304,31 @@ def store_suggestions(con: sqlite3.Connection, suggestions: list) -> int:
     return sum(store_suggestion(con, suggestion, digests) for suggestion in suggestions)
 
 
-def suggest_tags(run: Run) -> int:
+def everything_found(run: Run) -> list:
+    return [row.found for row in _fold.fold(run.con, run.kind, run.ctx, run.con.execute(EVERYTHING).fetchall())]
+
+
+def tell_updated(run: Run, founds: list) -> None:
+    if run.kind.updated is None:
+        return
+    try:
+        run.kind.updated(founds, run.ctx)
+    except Exception as error:
+        print(f"updated: {error!r}", file=sys.stderr)
+
+
+def suggest_tags(run: Run, founds: list) -> int:
     if run.kind.suggest is None:
         return 0
-    founds = [row.found for row in _fold.fold(run.con, run.kind, run.ctx, run.con.execute(EVERYTHING).fetchall())]
     return store_suggestions(run.con, suggestions_of(run.kind, founds, run.ctx))
+
+
+def tell_the_kind(run: Run) -> None:
+    if run.kind.updated is None and run.kind.suggest is None:
+        return
+    founds = everything_found(run)
+    tell_updated(run, founds)
+    suggest_tags(run, founds)
 
 
 def make_local_vectors(con: sqlite3.Connection, kind: Kind, ctx: Context) -> None:
@@ -342,6 +362,6 @@ def update(
     con.commit()
     make_local_vectors(con, kind, ctx)
     derive_missing(run)
-    suggest_tags(run)
+    tell_the_kind(run)
     con.commit()
     return run.found
