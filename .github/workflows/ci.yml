@@ -23,3 +23,30 @@ jobs:
         with:
           enable-cache: true
       - run: uv run --locked --python ${{ matrix.python }} pytest
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency: release
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        run: |
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "not a release version: $version"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Cut the numbered release when the version is new
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if found=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$VERSION" 2>&1); then
+            echo "v$VERSION is already tagged"
+          elif grep -q "HTTP 404" <<<"$found"; then
+            gh release create "v$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --generate-notes
+          else
+            echo "$found"; exit 1
+          fi
