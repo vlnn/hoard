@@ -24,7 +24,7 @@ from hoard.contract import (
     roots_from,
 )
 
-__version__ = "1.11.0"
+__version__ = "1.12.0"
 
 __all__ = [
     "Change",

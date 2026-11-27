@@ -194,6 +194,10 @@ A verb that wants Alfred back afterwards returns `Outcome(changes, then="bk tag 
 the bare changes: the kernel records the changes, posts the notification, and reopens Alfred at the
 `then` query. The tag picker, `std` and `like` use the same follow-up.
 
+A front end that is not Alfred's search bar, a window that stays open say, passes
+`api.act(kind, verb, ids, ctx, follow_up=show)`: hoard hands the `then` query to `show` and leaves
+Alfred where it is.
+
 ## 6. Commands
 
 A command is a first word that lists a subset with its own ↩:
