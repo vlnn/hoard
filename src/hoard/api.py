@@ -62,7 +62,19 @@ def update(
         con.close()
 
 
-def act(kind: Kind, verb: str, ids, ctx: Optional[Context] = None) -> str:
+def reopen_alfred(query: str) -> None:
+    from hoard import _requery
+
+    _requery.reopen(query)
+
+
+def act(
+    kind: Kind,
+    verb: str,
+    ids,
+    ctx: Optional[Context] = None,
+    follow_up: Optional[Callable[[str], None]] = None,
+) -> str:
     from hoard import _actions
 
     con, ctx = opened(kind, ctx)
@@ -71,9 +83,7 @@ def act(kind: Kind, verb: str, ids, ctx: Optional[Context] = None) -> str:
     finally:
         con.close()
     if reply.then:
-        from hoard import _requery
-
-        _requery.reopen(reply.then)
+        (follow_up or reopen_alfred)(reply.then)
     return reply.message
 
 

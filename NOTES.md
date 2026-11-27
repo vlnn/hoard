@@ -298,3 +298,14 @@ to sleep. None of them is needed to list what the index already holds.
 
 What is not covered: a keystroke that is itself a look at the storage, `fix` above all, whose plan
 is made from the files as they are.
+
+## 1.12.0: a follow-up the caller may take
+
+Kobold grew a window (an Alfred 6 UI bundle) that stays open after a verb. A follow-up that
+reopens Alfred's search bar is wrong there: ↩ on a library book should show the genre picker in
+the window, not behind it. `api.act` knew the `then` query and offered no way to have it, so the
+window swapped `_requery.reopen` out for the call, the one private import in kobold.
+
+- **`api.act(..., follow_up=callable)`.** When the verb's reply carries a `then` query, hoard
+  calls `follow_up(query)` and does not run `osascript`. Without it nothing changes: Alfred is
+  reopened as before, so `hoard.py act` and every existing kind behave the same.

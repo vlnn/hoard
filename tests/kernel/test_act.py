@@ -144,3 +144,20 @@ def test_reopening_without_osascript_is_only_noted(ctx, dune, mocker, capsys):
     kind = with_verb(FakeKind, "browse", lambda founds, ctx: Outcome((), then="fk like"))
     assert api.act(kind, "browse", [entity_id], ctx) == "Browse: nothing to do", "a missing osascript should not fail the verb"
     assert "fk like" in capsys.readouterr().err, "the wanted query should be noted on stderr"
+
+
+def test_a_caller_may_take_the_follow_up_itself(ctx, dune, mocker):
+    run = mocker.patch("subprocess.run")
+    entity_id, _ = dune
+    asked = []
+    kind = with_verb(FakeKind, "shelve", lambda founds, ctx: Outcome([Change(entity_id, "shelve", None, None)], then="fk tag #1 "))
+    assert api.act(kind, "shelve", [entity_id], ctx, follow_up=asked.append) == "Shelve: Dune (cannot be undone)", "the message should still be reported"
+    assert asked == ["fk tag #1 "], "the caller should be handed the follow-up query"
+    run.assert_not_called()
+
+
+def test_a_caller_is_not_asked_to_follow_up_on_nothing(ctx, dune):
+    entity_id, _ = dune
+    asked = []
+    api.act(FakeKind, "toss", [entity_id], ctx, follow_up=asked.append)
+    assert asked == [], "a verb without a follow-up should leave the caller alone"
